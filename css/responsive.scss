@@ -193,6 +193,8 @@
                 height: 50px;
                 top: 0;
                 right: 0;
+                min-width: 0;
+                border: none;
 
                 &:before {
                     right: 15px;
@@ -244,9 +246,12 @@
         line-height: 28px;
     }
 
-    .sb-list .sb-time {
-        font-size: 13px;
-        line-height: 19px;
+    .sb-list {
+        .sb-time {
+            font-size: 13px;
+            line-height: 19px;
+        }
+
     }
 
     .sb-editor textarea, .sb-list .sb-message, .sb-list .sb-message a, .sb-chat .sb-dashboard > div > .sb-title, .sb-chat .sb-dashboard > div > .sb-top,

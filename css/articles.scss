@@ -83,12 +83,18 @@ $box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
             transition: all 0.4s;
             color: $color-black;
             font-size: 20px;
-            line-height: 25px;
+            line-height: 32px;
+        }
+
+        h3 {
+            font-size: 17px;
+            line-height: 30px;
+            margin: 0;
         }
 
         p {
             font-weight: 400;
-            font-size: 13px;
+            font-size: 14px;
             line-height: 25px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -127,6 +133,11 @@ $box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
                 height: 50px;
                 margin: 10px 0 0 0;
             }
+        }
+
+        .sb-content ul li {
+            font-size: 15px;
+            line-height: 30px;
         }
 
         .sb-parent-category-box, .sb-grid > a {

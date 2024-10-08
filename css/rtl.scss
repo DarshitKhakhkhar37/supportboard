@@ -34,6 +34,8 @@
         > div {
             left: auto;
             right: 6px;
+            padding-left: 0;
+            padding-right: 5px;
         }
     }
 
@@ -411,7 +413,7 @@
         padding: 0 10px !important;
     }
 
-    .sb-input-select-input input {
+    .sb-input-select-input > div.sb-select-phone + input {
         padding: 5px 100px 0 0;
     }
 

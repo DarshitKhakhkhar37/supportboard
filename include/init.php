@@ -187,8 +187,9 @@ function sb_cross_site_init() {
         } else {
             $domains = SB_CROSS_DOMAIN_URL;
             $current_domain = str_replace(['https://', 'http://'], '', $_SERVER['HTTP_REFERER']);
-            if (strpos($current_domain, '/'))
+            if (strpos($current_domain, '/')) {
                 $current_domain = substr($current_domain, 0, strpos($current_domain, '/'));
+            }
         }
         for ($i = 0; $i < count($domains); $i++) {
             $domain = $domains[$i];
@@ -219,16 +220,18 @@ function sb_cross_site_init() {
 }
 
 function sb_agents_menu() {
-    $agents = sb_db_get('SELECT id, first_name, last_name, profile_image FROM sb_users WHERE user_type = "agent"', false);
+    $online_agent_ids = sb_get_multi_setting('agents-menu', 'agents-menu-online-only') ? sb_get_online_user_ids(true) : false;
+    $agents = sb_db_get('SELECT id, first_name, last_name, profile_image FROM sb_users WHERE ' . ($online_agent_ids !== false ? 'id IN (' . (count($online_agent_ids) ? implode(', ', $online_agent_ids) : '""') . ')' : 'user_type = "agent"'), false);
     $code = '<div class="sb-dashboard-agents"><div class="sb-title">' . sb_(sb_get_multi_setting('agents-menu', 'agents-menu-title', 'Agents')) . '</div><div class="sb-agents-list"' . (sb_get_multi_setting('agents-menu', 'agents-menu-force-one') ? ' data-force-one="true"' : '') . '>';
-    for ($i = 0; $i < count($agents); $i++) {
+    $count = count($agents);
+    for ($i = 0; $i < $count; $i++) {
         $code .= '<div data-id="' . $agents[$i]['id'] . '"><img src="' . $agents[$i]['profile_image'] . '" loading="lazy"><span>' . $agents[$i]['first_name'] . ' ' . $agents[$i]['last_name'] . '</span></div>';
     }
-    echo $code . '</div></div>';
+    echo $code . ($count ? '' : '<span class="sb-no-results">' . sb_('No online agents available.') . '</span>') . '</div></div>';
 }
 
 function sb_messaging_channels() {
-    $channels = [['wa', 'WhatsApp', 'whatsapp'], ['fb', 'Messenger'], ['ig', 'Instagram'], ['tw', 'Twitter'], ['tg', 'Telegram'], ['vb', 'Viber'], ['ln', 'LINE'], ['wc', 'WeChat'], ['em', 'Email'], ['tk', 'Ticket'], ['tm', 'Phone']];
+    $channels = [['wa', 'WhatsApp'], ['fb', 'Messenger'], ['ig', 'Instagram'], ['tw', 'Twitter'], ['tg', 'Telegram'], ['vb', 'Viber'], ['ln', 'LINE'], ['wc', 'WeChat'], ['za', 'Zalo'], ['em', 'Email'], ['tk', 'Ticket'], ['tm', 'Phone']];
     $code = '<div class="sb-messaging-channels"><div class="sb-title">' . sb_(sb_get_multi_setting('messaging-channels', 'messaging-channels-title', 'Channels')) . '</div><div class="sb-channels-list">';
     for ($i = 0; $i < count($channels); $i++) {
         $channel = $channels[$i][0];

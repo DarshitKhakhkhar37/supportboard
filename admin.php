@@ -23,8 +23,12 @@ if (file_exists('config.php')) {
     require('include/functions.php');
     $is_cloud = sb_is_cloud();
     if ($is_cloud) {
-        if (isset($_GET['reset-login'])) {
+        if (isset($_GET['reset-login']) || isset($_GET['login_email'])) {
             sb_cloud_reset_login();
+        }
+        if (isset($_GET['magic'])) {
+            require_once(SB_CLOUD_PATH . '/account/functions.php');
+            account_magic_link_login($_GET['magic']);
         }
         sb_cloud_load();
         if (!defined('SB_DB_NAME') || !sb_is_agent()) {

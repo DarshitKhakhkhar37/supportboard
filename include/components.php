@@ -139,103 +139,23 @@ function sb_profile_edit_box() { ?>
                     <?php sb_e('Edit additional details') ?>
                 </div>
                 <div class="sb-edit-box">
-                    <div id="address" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Address') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="city" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('City') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="country" data-type="select" class="sb-input">
-                        <span>
-                            <?php sb_e('Country') ?>
-                        </span>
-                        <?php echo sb_select_countries() ?>
-                    </div>
-                    <div id="postal_code" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Postal code') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="state" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('State') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="phone" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Phone') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="language" data-type="select" class="sb-input">
-                        <span>
-                            <?php sb_e('Language') ?>
-                        </span>
-                        <?php echo sb_select_languages() ?>
-                    </div>
-                    <div id="birthdate" data-type="date" class="sb-input">
-                        <span>
-                            <?php sb_e('Birthdate') ?>
-                        </span>
-                        <input type="date" />
-                    </div>
-                    <div id="company" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Company') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="facebook" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Facebook') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="twitter" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Twitter') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="linkedin" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('LinkedIn') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="website" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Website') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
-                    <div id="timezone" data-type="text" class="sb-input">
-                        <span>
-                            <?php sb_e('Timezone') ?>
-                        </span>
-                        <input type="text" />
-                    </div>
                     <?php
-                    $additional_fields = sb_get_setting('user-additional-fields');
-                    if ($additional_fields != false && is_array($additional_fields)) {
-                        $code = '';
-                        for ($i = 0; $i < count($additional_fields); $i++) {
-                            $value = $additional_fields[$i];
-                            if ($value['extra-field-name'] != '') {
-                                $code .= '<div id="' . $value['extra-field-slug'] . '" data-type="text" class="sb-input"><span>' . $value['extra-field-name'] . '</span><input type="text"></div>';
-                            }
+                    $code = '';
+                    $fields = sb_users_get_fields();
+                    foreach ($fields as $field) {
+                        $id = $field['id'];
+                        $type = $id == 'country' || $id == 'language' ? 'select' : ($id == 'birthdate' ? 'date' : 'text');
+                        $code .= '<div id="' . $id . '" data-type="' . $type . '" class="sb-input"><span>' . sb_($field['name']) . '</span>';
+                        if ($type == 'date' || $type == 'text') {
+                            $code .= '<input type="' . $type . '" />';
+                        } else if ($id == 'country') {
+                            $code .= sb_select_html('countries');
+                        } else if ($id == 'language') {
+                            $code .= sb_select_html('languages');
                         }
-                        echo $code;
+                        $code .= '</div>';
                     }
-
+                    echo $code;
                     ?>
                 </div>
             </div>
@@ -368,7 +288,7 @@ function sb_app_box() { ?>
             <div class="sb-title">
                 <?php sb_e('License key') ?>
             </div>
-            <div class="sb-input-setting sb-type-text">
+            <div class="sb-setting sb-type-text">
                 <input type="text" required />
             </div>
             <div class="sb-bottom">
@@ -412,19 +332,19 @@ function sb_direct_message_box() { ?>
             <div class="sb-title">
                 <?php sb_e('User IDs') ?>
             </div>
-            <div class="sb-input-setting sb-type-text sb-first">
+            <div class="sb-setting sb-type-text sb-first">
                 <input class="sb-direct-message-users" type="text" placeholder="<?php sb_e('User IDs separated by commas') ?>" required />
             </div>
             <div class="sb-title sb-direct-message-subject">
                 <?php sb_e('Subject') ?>
             </div>
-            <div class="sb-input-setting sb-type-text sb-direct-message-subject">
+            <div class="sb-setting sb-type-text sb-direct-message-subject">
                 <input type="text" placeholder="<?php sb_e('Email subject') ?>" />
             </div>
             <div class="sb-title sb-direct-message-title-subject">
                 <?php sb_e('Message') ?>
             </div>
-            <div class="sb-input-setting sb-type-textarea">
+            <div class="sb-setting sb-type-textarea">
                 <textarea placeholder="<?php sb_e('Write here your message...') ?>" required></textarea>
             </div>
             <div class="sb-bottom">
@@ -555,8 +475,8 @@ function sb_installation_box($error = false) {
 
 function sb_component_admin() {
     $is_cloud = sb_is_cloud();
-    $cloud_active_apps = [];
-    $sb_settings = json_decode(file_get_contents(SB_PATH . '/resources/json/settings.json'), true);
+    $cloud_active_apps = $is_cloud ? sb_get_external_setting('active_apps', []) : [];
+    $sb_settings = sb_get_json_resource('json/settings.json');
     $active_user = sb_get_active_user(false, true);
     $collapse = sb_get_setting('collapse') ? ' sb-collapse' : '';
     $apps = [
@@ -568,9 +488,9 @@ function sb_component_admin() {
         ['SB_TWITTER', 'twitter', 'Twitter', 'Lets your users reach you via Twitter. Read and reply to messages sent to your Twitter account directly from {R}.'],
         ['SB_TELEGRAM', 'telegram', 'Telegram', 'Connect your Telegram bot to {R} to read and reply to all messages sent to your Telegram bot directly in {R}.'],
         ['SB_VIBER', 'viber', 'Viber', 'Connect your Viber bot to {R} to read and reply to all messages sent to your Viber bot directly in {R}.'],
-        ['SB_GBM', 'gbm', 'Business Messages', 'Read and reply to messages sent from Google Search, Maps and brand-owned channels directly in {R}.'],
         ['SB_LINE', 'line', 'Line', 'Connect your LINE bot to {R} to read and reply to all messages sent to your LINE bot directly in {R}.'],
         ['SB_WECHAT', 'wechat', 'WeChat', 'Lets your users reach you via WeChat. Read and reply to all messages sent to your WeChat official account directly from {R}.'],
+        ['SB_ZALO', 'zalo', 'Zalo', 'Connect your Zalo Official Account to {R} to read and reply to all messages sent to your Zalo Official Account directly in {R}.'],
         ['SB_WOOCOMMERCE', 'woocommerce', 'WooCommerce', 'Increase sales, provide better support, and faster solutions, by integrating WooCommerce with {R}.'],
         ['SB_SLACK', 'slack', 'Slack', 'Communicate with your users right from Slack. Send and receive messages and attachments, use emojis, and much more.'],
         ['SB_ZENDESK', 'zendesk', 'Zendesk', 'Automatically sync Zendesk customers with {R}, view Zendesk tickets, or create new ones without leaving {R}.'],
@@ -583,11 +503,11 @@ function sb_component_admin() {
         ['SB_MARTFURY', 'martfury', 'Martfury', 'Increase sales and connect you and sellers with customers in real-time by integrating Martfury with {R}.'],
     ];
     $logged = $active_user && sb_is_agent($active_user) && (!defined('SB_WP') || !sb_get_setting('wp-force-logout') || sb_wp_verify_admin_login());
-    $supervisor = sb_supervisor() ? sb_get_setting('supervisor') : false;
+    $supervisor = sb_supervisor();
     $is_admin = $active_user && sb_is_agent($active_user, true, true) && !$supervisor;
     $sms = sb_get_multi_setting('sms', 'sms-user');
     $css_class = ($logged ? 'sb-admin' : 'sb-admin-start') . (sb_get_setting('rtl-admin') || ($is_cloud && defined('SB_CLOUD_DEFAULT_RTL')) ? ' sb-rtl' : '') . ($is_cloud ? ' sb-cloud' : '') . ($supervisor ? ' sb-supervisor' : '');
-    $active_areas = ['users' => $is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-users-area')) || ($supervisor && $supervisor['supervisor-users-area']), 'settings' => $is_admin || ($supervisor && $supervisor['supervisor-settings-area']), 'reports' => ($is_admin && !sb_get_multi_setting('performance', 'performance-reports')) || ($supervisor && $supervisor['supervisor-reports-area']), 'articles' => $is_admin || ($supervisor && sb_isset($supervisor, 'supervisor-articles-area')) || (!$supervisor && sb_get_multi_setting('agents', 'agents-articles-area'))];
+    $active_areas = ['users' => $is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-users-area')) || ($supervisor && $supervisor['supervisor-users-area']), 'settings' => $is_admin || ($supervisor && $supervisor['supervisor-settings-area']), 'reports' => ($is_admin && !sb_get_multi_setting('performance', 'performance-reports')) || ($supervisor && $supervisor['supervisor-reports-area']), 'articles' => ($is_admin && !sb_get_multi_setting('performance', 'performance-articles')) || ($supervisor && sb_isset($supervisor, 'supervisor-articles-area')) || (!$supervisor && !$is_admin && sb_get_multi_setting('agents', 'agents-articles-area')), 'chatbot' => defined('SB_DIALOGFLOW') && ($is_admin || ($supervisor && $supervisor['supervisor-settings-area'])) && (!$is_cloud || in_array('dialogflow', $cloud_active_apps))];
     $disable_translations = sb_get_setting('admin-disable-settings-translations');
     $admin_colors = [sb_get_setting('color-admin-1'), sb_get_setting('color-admin-2')];
     if ($supervisor && !$supervisor['supervisor-send-message']) {
@@ -595,6 +515,7 @@ function sb_component_admin() {
     }
     if ($is_cloud) {
         require_once(SB_CLOUD_PATH . '/account/functions.php');
+        $sb_settings = sb_cloud_merge_settings($sb_settings);
         cloud_custom_code();
     } else if (!sb_box_ve()) {
         return;
@@ -602,8 +523,8 @@ function sb_component_admin() {
     if ($admin_colors[0]) {
         $css = '.sb-menu-wide ul li.sb-active, .sb-tab > .sb-nav > ul li.sb-active,.sb-table input[type="checkbox"]:checked, .sb-table input[type="checkbox"]:hover { border-color: ' . $admin_colors[0] . '; }';
         $css .= '.sb-board > .sb-admin-list .sb-scroll-area li.sb-active,.sb-user-conversations > li.sb-active { border-left-color: ' . $admin_colors[0] . '; }';
-        $css .= '.sb-setting input:focus, .sb-setting select:focus, .sb-setting textarea:focus, .sb-input-setting input:focus, .sb-input-setting select:focus, .sb-input-setting textarea:focus,.sb-setting.sb-type-upload-image .image:hover, .sb-setting [data-type="upload-image"] .image:hover, .sb-input-setting.sb-type-upload-image .image:hover, .sb-input-setting [data-type="upload-image"] .image:hover,.sb-input > input:focus, .sb-input > input.sb-focus, .sb-input > select:focus, .sb-input > select.sb-focus, .sb-input > textarea:focus, .sb-input > textarea.sb-focus,.sb-search-btn > input,.sb-search-btn > input:focus { border-color: ' . $admin_colors[0] . '; box-shadow: 0 0 5px rgb(108 108 108 / 20%);}';
-        $css .= '.sb-menu-wide ul li.sb-active, .sb-menu-wide ul li:hover, .sb-tab > .sb-nav > ul li.sb-active, .sb-tab > .sb-nav > ul li:hover,.sb-admin > .sb-header > .sb-admin-nav > div > a:hover, .sb-admin > .sb-header > .sb-admin-nav > div > a.sb-active,.sb-setting input[type="checkbox"]:checked:before, .sb-input-setting input[type="checkbox"]:checked:before,.sb-language-switcher > i:hover,.sb-admin > .sb-header > .sb-admin-nav-right .sb-account .sb-menu li:hover, .sb-admin > .sb-header > .sb-admin-nav-right .sb-account .sb-menu li.sb-active:hover,.sb-admin > .sb-header > .sb-admin-nav-right > div > a:hover,.sb-search-btn i:hover, .sb-search-btn.sb-active i, .sb-filter-btn i:hover, .sb-filter-btn.sb-active i,.sb-loading:before,.sb-board .sb-conversation > .sb-top a:hover i,.sb-panel-details > i:hover,.sb-board .sb-conversation > .sb-top > a:hover,.sb-btn-text:hover,.sb-table input[type="checkbox"]:checked:before,.sb-profile-list [data-id="wp-id"]:hover, .sb-profile-list [data-id="wp-id"]:hover label, .sb-profile-list [data-id="conversation-source"]:hover, .sb-profile-list [data-id="conversation-source"]:hover label, .sb-profile-list [data-id="location"]:hover, .sb-profile-list [data-id="location"]:hover label, .sb-profile-list [data-id="timezone"]:hover, .sb-profile-list [data-id="timezone"]:hover label, .sb-profile-list [data-id="current_url"]:hover, .sb-profile-list [data-id="current_url"]:hover label, .sb-profile-list [data-id="envato-purchase-code"]:hover, .sb-profile-list [data-id="envato-purchase-code"]:hover label,.sb-board > .sb-admin-list .sb-scroll-area li[data-conversation-status="2"] .sb-time,.sb-select p:hover,div ul.sb-menu li.sb-active:not(:hover), .sb-select ul li.sb-active:not(:hover),.sb-board .sb-conversation .sb-list > div .sb-menu-btn:hover { color: ' . $admin_colors[0] . '; }';
+        $css .= '.sb-setting input:focus, .sb-setting select:focus, .sb-setting textarea:focus, .sb-setting input:focus, .sb-setting select:focus, .sb-setting textarea:focus,.sb-setting.sb-type-upload-image .image:hover, .sb-setting [data-type="upload-image"] .image:hover, .sb-setting.sb-type-upload-image .image:hover, .sb-setting [data-type="upload-image"] .image:hover,.sb-input > input:focus, .sb-input > input.sb-focus, .sb-input > select:focus, .sb-input > select.sb-focus, .sb-input > textarea:focus, .sb-input > textarea.sb-focus,.sb-search-btn > input,.sb-search-btn > input:focus { border-color: ' . $admin_colors[0] . '; box-shadow: 0 0 5px rgb(108 108 108 / 20%);}';
+        $css .= '.sb-menu-wide ul li.sb-active, .sb-menu-wide ul li:hover, .sb-tab > .sb-nav > ul li.sb-active, .sb-tab > .sb-nav > ul li:hover,.sb-admin > .sb-header > .sb-admin-nav > div > a:hover, .sb-admin > .sb-header > .sb-admin-nav > div > a.sb-active,.sb-setting input[type="checkbox"]:checked:before, .sb-setting input[type="checkbox"]:checked:before,.sb-language-switcher > i:hover,.sb-admin > .sb-header > .sb-admin-nav-right .sb-account .sb-menu li:hover, .sb-admin > .sb-header > .sb-admin-nav-right .sb-account .sb-menu li.sb-active:hover,.sb-admin > .sb-header > .sb-admin-nav-right > div > a:hover,.sb-search-btn i:hover, .sb-search-btn.sb-active i, .sb-filter-btn i:hover, .sb-filter-btn.sb-active i,.sb-loading:before,.sb-board .sb-conversation > .sb-top a:hover i,.sb-panel-details > i:hover,.sb-board .sb-conversation > .sb-top > a:hover,.sb-btn-text:hover,.sb-table input[type="checkbox"]:checked:before,.sb-profile-list [data-id="wp-id"]:hover, .sb-profile-list [data-id="wp-id"]:hover label, .sb-profile-list [data-id="conversation-source"]:hover, .sb-profile-list [data-id="conversation-source"]:hover label, .sb-profile-list [data-id="location"]:hover, .sb-profile-list [data-id="location"]:hover label, .sb-profile-list [data-id="timezone"]:hover, .sb-profile-list [data-id="timezone"]:hover label, .sb-profile-list [data-id="current_url"]:hover, .sb-profile-list [data-id="current_url"]:hover label, .sb-profile-list [data-id="envato-purchase-code"]:hover, .sb-profile-list [data-id="envato-purchase-code"]:hover label,.sb-board > .sb-admin-list .sb-scroll-area li[data-conversation-status="2"] .sb-time,.sb-select p:hover,div ul.sb-menu li.sb-active:not(:hover), .sb-select ul li.sb-active:not(:hover),.sb-board .sb-conversation .sb-list > div .sb-menu-btn:hover { color: ' . $admin_colors[0] . '; }';
         $css .= '.sb-btn, a.sb-btn,.sb-area-settings .sb-tab .sb-btn:hover, .sb-btn-white:hover,.daterangepicker td.active, .daterangepicker td.active:hover, .daterangepicker .ranges li.active,div ul.sb-menu li:hover, .sb-select ul li:hover,div.sb-select.sb-select-colors > p:hover,.sb-board > .sb-admin-list .sb-scroll-area li > .sb-notification-counter { background-color: ' . $admin_colors[0] . '; }';
         $css .= '.sb-board > .sb-admin-list.sb-departments-show li.sb-active:before { background-color: ' . $admin_colors[0] . ' !important;}';
         $css .= '.sb-btn-icon:hover,.sb-tags-cnt > span:hover { border-color: ' . $admin_colors[0] . '; color: ' . $admin_colors[0] . '; }';
@@ -633,17 +554,17 @@ function sb_component_admin() {
                         if ($active_areas['users']) {
                             echo '<a id="sb-users"><span>' . sb_('Users') . '</span></a>';
                         }
-                        if ($active_areas['settings']) {
-                            if ($is_cloud) {
-                                $cloud_active_apps = sb_get_external_setting('active_apps', []);
-                            }
-                            echo '<a id="sb-settings"><span>' . sb_('Settings') . '</span></a>';
+                        if ($active_areas['chatbot']) {
+                            echo '<a id="sb-chatbot"><span>' . sb_('Chatbot') . '</span></a>';
+                        }
+                        if ($active_areas['articles']) {
+                            echo '<a id="sb-articles"><span>' . sb_('Articles') . '</span></a>';
                         }
                         if ($active_areas['reports']) {
                             echo '<a id="sb-reports"><span>' . sb_('Reports') . '</span></a>';
                         }
-                        if ($active_areas['articles']) {
-                            echo '<a id="sb-articles"><span>' . sb_('Articles') . '</span></a>';
+                        if ($active_areas['settings']) {
+                            echo '<a id="sb-settings"><span>' . sb_('Settings') . '</span></a>';
                         }
                         ?>
                     </div>
@@ -664,7 +585,7 @@ function sb_component_admin() {
                                     </li>
                                     <?php
                                     if ($is_admin) {
-                                        echo '<li data-value="edit-profile">' . sb_('Edit profile') . '</li>' . ($is_cloud && sb_isset(sb_cloud_account(), 'owner') ? ('<li data-value="account">' . sb_('Account') . '</li>' . (defined('SB_CLOUD_DOCS') ? '<li data-value="help"><a href="' . SB_CLOUD_DOCS . '" target="_blank">' . sb_('Help') . '</a></li>' : '')) : '');
+                                        echo '<li data-value="edit-profile">' . sb_('Edit profile') . '</li>' . ($is_cloud ? sb_cloud_account_menu() : '');
                                     }
                                     ?>
                                     <li data-value="logout">
@@ -683,7 +604,7 @@ function sb_component_admin() {
                     <div class="sb-mobile">
                         <?php
                         if ($is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-edit-user')) || ($supervisor && $supervisor['supervisor-edit-user'])) {
-                            echo '<a href="#" class="edit-profile">' . sb_('Edit profile') . '</a>' . ($is_cloud && sb_isset(sb_cloud_account(), 'owner') ? ('<a href="#" data-value="account">' . sb_('Account') . '</a>') : '') . '<a href="#" class="sb-docs">' . sb_('Docs') . '</a><a href="#" class="sb-version">' . sb_('Updates') . '</a>';
+                            echo '<a href="#" class="edit-profile">' . sb_('Edit profile') . '</a>' . ($is_cloud ? sb_cloud_account_menu('a') : '<a href="#" class="sb-docs">' . sb_('Docs') . '</a>') . '<a href="#" class="sb-version">' . sb_('Updates') . '</a>';
                         }
                         ?>
                         <a href="#" class="sb-online" data-value="status">
@@ -758,8 +679,8 @@ function sb_component_admin() {
                                             </a>
                                         </li>
                                         <?php
-                                        if ($is_admin || sb_get_setting('agents-delete') || (!$supervisor && sb_get_multi_setting('agents', 'agents-delete-conversation')) || ($supervisor && $supervisor['supervisor-delete-conversation'])) {
-                                            echo '<li><a data-value="delete" class="sb-btn-icon sb-btn-red" data-sb-tooltip="' . sb_('Delete conversation') . '"><i class="sb-icon-delete"></i></a></li><li><a data-value="empty-trash" class="sb-btn-icon sb-btn-red" data-sb-tooltip="' . sb_('Empty trash') . '"><i class="sb-icon-delete"></i></a></li>'; //temp delete  sb_get_setting('agents-delete')
+                                        if ($is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-delete-conversation')) || ($supervisor && $supervisor['supervisor-delete-conversation'])) {
+                                            echo '<li><a data-value="delete" class="sb-btn-icon sb-btn-red" data-sb-tooltip="' . sb_('Delete conversation') . '"><i class="sb-icon-delete"></i></a></li><li><a data-value="empty-trash" class="sb-btn-icon sb-btn-red" data-sb-tooltip="' . sb_('Empty trash') . '"><i class="sb-icon-delete"></i></a></li>';
                                         }
                                         ?>
                                         <li>
@@ -814,7 +735,7 @@ function sb_component_admin() {
                                     echo '<div class="sb-panel-details sb-panel-tags"><i class="sb-icon-settings"></i><h3>' . sb_('Tags') . '</h3><div></div></div>';
                                 }
                                 if (!sb_get_multi_setting('disable', 'disable-attachments')) {
-                                    echo '<div class="sb-panel-details sb-panel-attachments' . $collapse . '"></div>';
+                                    echo '<div class="sb-panel-details sb-panel-attachments sb-collapse"></div>';
                                 }
                                 ?>
                                 <h3 class="sb-hide">
@@ -861,7 +782,7 @@ function sb_component_admin() {
                                             <?php sb_e('Online') ?>
                                         </li>
                                         <?php
-                                        if ($is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-tab')) || ($supervisor && sb_get_multi_setting('supervisor', 'supervisor-agents-tab'))) {
+                                        if ($is_admin || (!$supervisor && sb_get_multi_setting('agents', 'agents-tab')) || ($supervisor && $supervisor['supervisor-agents-tab'])) {
                                             echo '<li data-type="agent">' . sb_('Agents & Admins') . '</li>';
                                         }
                                         ?>
@@ -898,6 +819,7 @@ function sb_component_admin() {
                                         ?>
                                     </ul>
                                 </div>
+                                <?php sb_conversations_filter($cloud_active_apps) ?>
                             </div>
                             <div>
                                 <div class="sb-search-btn">
@@ -940,6 +862,293 @@ function sb_component_admin() {
                         </div>
                     </div>
                 <?php } ?>
+                <?php
+                if ($active_areas['chatbot']) {
+                    require_once(SB_PATH . '/apps/dialogflow/components.php');
+                    sb_dialogflow_chatbot_area();
+                }
+                ?>
+                <?php if ($active_areas['articles']) { ?>
+                    <div class="sb-area-articles sb-loading">
+                        <div class="sb-top-bar">
+                            <div>
+                                <h2>
+                                    <?php sb_e('Articles') ?>
+                                </h2>
+                                <div class="sb-menu-wide sb-menu-articles">
+                                    <div>
+                                        <?php sb_e('Articles') ?>
+                                    </div>
+                                    <ul>
+                                        <li data-type="articles" class="sb-active">
+                                            <?php sb_e('Articles') ?>
+                                        </li>
+                                        <li data-type="categories">
+                                            <?php sb_e('Categories') ?>
+                                        </li>
+                                        <li data-type="settings">
+                                            <?php sb_e('Settings') ?>
+                                        </li>
+                                        <?php
+                                        if ($active_areas['reports']) {
+                                            echo '<li data-type="reports">' . sb_('Reports') . '</li>';
+                                        }
+                                        sb_docs_link('#articles');
+                                        ?>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div>
+                                <a class="sb-btn-icon sb-view-article" href="" target="_blank">
+                                    <i class="sb-icon-next"></i>
+                                </a>
+                                <a class="sb-btn sb-save-articles sb-icon">
+                                    <i class="sb-icon-check"></i>
+                                    <?php sb_e('Save changes') ?>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="sb-tab sb-inner-tab">
+                            <div class="sb-nav sb-nav-only sb-scroll-area">
+                                <ul class="ul-articles"></ul>
+                                <ul class="ul-categories"></ul>
+                                <div class="sb-add-category sb-btn sb-icon sb-btn-white">
+                                    <i class="sb-icon-plus"></i>
+                                    <?php sb_e('Add new category') ?>
+                                </div>
+                                <div class="sb-add-article sb-btn sb-icon sb-btn-white">
+                                    <i class="sb-icon-plus"></i>
+                                    <?php sb_e('Add new article') ?>
+                                </div>
+                            </div>
+                            <div class="sb-content sb-content-articles sb-scroll-area sb-loading">
+                                <h2 class="sb-language-switcher-cnt">
+                                    <?php sb_e('Title') ?>
+                                </h2>
+                                <div class="sb-setting sb-type-text sb-article-title">
+                                    <div>
+                                        <input type="text" />
+                                    </div>
+                                </div>
+                                <h2>
+                                    <?php sb_e('Content') ?>
+                                </h2>
+                                <div class="sb-setting sb-type-textarea sb-article-content">
+                                    <div>
+                                        <?php echo sb_get_setting('disable-editor-js') ? '<textarea></textarea>' : '<div id="editorjs"></div>' ?>
+                                    </div>
+                                </div>
+                                <h2>
+                                    <?php sb_e('External link') ?>
+                                </h2>
+                                <div class="sb-setting sb-type-text sb-article-link">
+                                    <div>
+                                        <input type="text" />
+                                    </div>
+                                </div>
+                                <div class="sb-article-categories sb-grid">
+                                    <div>
+                                        <h2>
+                                            <?php sb_e('Parent category') ?>
+                                        </h2>
+                                        <div class="sb-setting sb-type-select">
+                                            <div>
+                                                <select id="article-parent-categories"></select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h2>
+                                            <?php sb_e('Categories') ?>
+                                        </h2>
+                                        <div class="sb-setting sb-type-select">
+                                            <div>
+                                                <select id="article-categories"></select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h2 id="sb-article-id"></h2>
+                            </div>
+                            <div class="sb-content sb-content-categories sb-scroll-area sb-loading">
+                                <h2 class="sb-language-switcher-cnt">
+                                    <?php sb_e('Name') ?>
+                                </h2>
+                                <div class="sb-setting sb-type-text">
+                                    <div>
+                                        <input id="category-title" type="text" />
+                                    </div>
+                                </div>
+                                <h2>
+                                    <?php sb_e('Description') ?>
+                                </h2>
+                                <div class="sb-setting sb-type-textarea">
+                                    <div>
+                                        <textarea id="category-description"></textarea>
+                                    </div>
+                                </div>
+                                <h2>
+                                    <?php sb_e('Image') ?>
+                                </h2>
+                                <div data-type="image" class="sb-input sb-setting sb-input-image">
+                                    <div id="category-image" class="image">
+                                        <div class="sb-icon-close"></div>
+                                    </div>
+                                </div>
+                                <h2 class="category-parent">
+                                    <?php sb_e('Parent category') ?>
+                                </h2>
+                                <div data-type="checkbox" class="sb-setting sb-type-checkbox category-parent">
+                                    <div class="input">
+                                        <input id="category-parent" type="checkbox" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php } ?>
+                <?php if ($active_areas['reports']) { ?>
+                    <div class="sb-area-reports sb-loading">
+                        <div class="sb-top-bar">
+                            <div>
+                                <h2>
+                                    <?php sb_e('Reports') ?>
+                                </h2>
+                            </div>
+                            <div>
+                                <div class="sb-setting sb-type-text">
+                                    <input id="sb-date-picker" placeholder="00/00/0000 - 00/00/0000" type="text" />
+                                </div>
+                                <div class="sb-report-export sb-btn-icon">
+                                    <i class="sb-icon-download"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sb-tab">
+                            <div class="sb-nav sb-nav-only sb-scroll-area">
+                                <div>
+                                    <?php sb_e('Reports') ?>
+                                </div>
+                                <ul>
+                                    <li class="sb-tab-nav-title">
+                                        <?php sb_e('Conversations') ?>
+                                    </li>
+                                    <li id="conversations" class="sb-active">
+                                        <?php sb_e('Conversations') ?>
+                                    </li>
+                                    <li id="missed-conversations">
+                                        <?php sb_e('Missed conversations') ?>
+                                    </li>
+                                    <li id="conversations-time">
+                                        <?php sb_e('Conversations time') ?>
+                                    </li>
+                                    <li class="sb-tab-nav-title">
+                                        <?php sb_e('Direct messages') ?>
+                                    </li>
+                                    <li id="direct-messages">
+                                        <?php sb_e('Chat messages') ?>
+                                    </li>
+                                    <li id="direct-emails">
+                                        <?php sb_e('Emails') ?>
+                                    </li>
+                                    <li id="direct-sms">
+                                        <?php sb_e('Text messages') ?>
+                                    </li>
+                                    <li class="sb-tab-nav-title">
+                                        <?php sb_e('Users and agents') ?>
+                                    </li>
+                                    <li id="visitors">
+                                        <?php sb_e('Visitors') ?>
+                                    </li>
+                                    <li id="leads">
+                                        <?php sb_e('Leads') ?>
+                                    </li>
+                                    <li id="users">
+                                        <?php sb_e('Users') ?>
+                                    </li>
+                                    <li id="registrations">
+                                        <?php sb_e('Registrations') ?>
+                                    </li>
+                                    <li id="agents-response-time">
+                                        <?php sb_e('Agent response time') ?>
+                                    </li>
+                                    <li id="agents-conversations">
+                                        <?php sb_e('Agent conversations') ?>
+                                    </li>
+                                    <li id="agents-conversations-time">
+                                        <?php sb_e('Agent conversations time') ?>
+                                    </li>
+                                    <li id="agents-ratings">
+                                        <?php sb_e('Agent ratings') ?>
+                                    </li>
+                                    <li id="countries">
+                                        <?php sb_e('Countries') ?>
+                                    </li>
+                                    <li id="languages">
+                                        <?php sb_e('Languages') ?>
+                                    </li>
+                                    <li id="browsers">
+                                        <?php sb_e('Browsers') ?>
+                                    </li>
+                                    <li id="os">
+                                        <?php sb_e('Operating systems') ?>
+                                    </li>
+                                    <li class="sb-tab-nav-title">
+                                        <?php sb_e('Automation') ?>
+                                    </li>
+                                    <li id="follow-up">
+                                        <?php sb_e('Follow up') ?>
+                                    </li>
+                                    <li id="message-automations">
+                                        <?php sb_e('Message automations') ?>
+                                    </li>
+                                    <li id="email-automations">
+                                        <?php sb_e('Email automations') ?>
+                                    </li>
+                                    <?php
+                                    if ($sms) {
+                                        echo '<li id="sms-automations">' . sb_('Text message automations') . '</li>';
+                                    }
+                                    ?>
+                                    <li class="sb-tab-nav-title">
+                                        <?php sb_e('Articles') ?>
+                                    </li>
+                                    <li id="articles-searches">
+                                        <?php sb_e('Searches') ?>
+                                    </li>
+                                    <li id="articles-views">
+                                        <?php sb_e('Article views') ?>
+                                    </li>
+                                    <li id="articles-views-single">
+                                        <?php sb_e('Article views by article') ?>
+                                    </li>
+                                    <li id="articles-ratings">
+                                        <?php sb_e('Article ratings') ?>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="sb-content sb-scroll-area">
+                                <div class="sb-reports-chart">
+                                    <div class="chart-cnt">
+                                        <canvas></canvas>
+                                    </div>
+                                </div>
+                                <div class="sb-reports-sidebar">
+                                    <div class="sb-title sb-reports-title"></div>
+                                    <p class="sb-reports-text"></p>
+                                    <div class="sb-collapse">
+                                        <div>
+                                            <table class="sb-table"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="sb-no-results">
+                                    <?php echo sb_('No data found.') ?>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                <?php } ?>
                 <?php if ($active_areas['settings']) { ?>
                     <div class="sb-area-settings">
                         <div class="sb-top-bar">
@@ -963,7 +1172,7 @@ function sb_component_admin() {
                             </div>
                         </div>
                         <div class="sb-tab">
-                            <div class="sb-nav">
+                            <div class="sb-nav sb-scroll-area">
                                 <div>
                                     <?php sb_e('Settings') ?>
                                 </div>
@@ -1075,7 +1284,7 @@ function sb_component_admin() {
                                                     <h2 class="sb-language-switcher-cnt">
                                                         <?php sb_e('Name') ?>
                                                     </h2>
-                                                    <div class="sb-input-setting sb-type-text">
+                                                    <div class="sb-setting sb-type-text">
                                                         <div>
                                                             <input data-id="name" type="text" />
                                                         </div>
@@ -1083,7 +1292,7 @@ function sb_component_admin() {
                                                     <h2>
                                                         <?php sb_e('Message') ?>
                                                     </h2>
-                                                    <div class="sb-input-setting sb-type-textarea">
+                                                    <div class="sb-setting sb-type-textarea">
                                                         <div>
                                                             <textarea data-id="message"></textarea>
                                                         </div>
@@ -1145,290 +1354,6 @@ function sb_component_admin() {
                         </div>
                     </div>
                 <?php } ?>
-                <?php if ($active_areas['reports']) { ?>
-                    <div class="sb-area-reports sb-loading">
-                        <div class="sb-top-bar">
-                            <div>
-                                <h2>
-                                    <?php sb_e('Reports') ?>
-                                </h2>
-                            </div>
-                            <div>
-                                <div class="sb-setting sb-type-text">
-                                    <input id="sb-date-picker" placeholder="00/00/0000 - 00/00/0000" type="text" />
-                                </div>
-                                <div class="sb-report-export sb-btn-icon">
-                                    <i class="sb-icon-download"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="sb-tab">
-                            <div class="sb-nav sb-nav-only">
-                                <div>
-                                    <?php sb_e('Reports') ?>
-                                </div>
-                                <ul>
-                                    <li class="sb-tab-nav-title">
-                                        <?php sb_e('Conversations') ?>
-                                    </li>
-                                    <li id="conversations" class="sb-active">
-                                        <?php sb_e('Conversations') ?>
-                                    </li>
-                                    <li id="missed-conversations">
-                                        <?php sb_e('Missed conversations') ?>
-                                    </li>
-                                    <li id="conversations-time">
-                                        <?php sb_e('Conversations time') ?>
-                                    </li>
-                                    <li class="sb-tab-nav-title">
-                                        <?php sb_e('Direct messages') ?>
-                                    </li>
-                                    <li id="direct-messages">
-                                        <?php sb_e('Chat messages') ?>
-                                    </li>
-                                    <li id="direct-emails">
-                                        <?php sb_e('Emails') ?>
-                                    </li>
-                                    <li id="direct-sms">
-                                        <?php sb_e('Text messages') ?>
-                                    </li>
-                                    <li class="sb-tab-nav-title">
-                                        <?php sb_e('Users and agents') ?>
-                                    </li>
-                                    <li id="visitors">
-                                        <?php sb_e('Visitors') ?>
-                                    </li>
-                                    <li id="leads">
-                                        <?php sb_e('Leads') ?>
-                                    </li>
-                                    <li id="users">
-                                        <?php sb_e('Users') ?>
-                                    </li>
-                                    <li id="registrations">
-                                        <?php sb_e('Registrations') ?>
-                                    </li>
-                                    <li id="agents-response-time">
-                                        <?php sb_e('Agent response time') ?>
-                                    </li>
-                                    <li id="agents-conversations">
-                                        <?php sb_e('Agent conversations') ?>
-                                    </li>
-                                    <li id="agents-conversations-time">
-                                        <?php sb_e('Agent conversations time') ?>
-                                    </li>
-                                    <li id="agents-ratings">
-                                        <?php sb_e('Agent ratings') ?>
-                                    </li>
-                                    <li id="countries">
-                                        <?php sb_e('Countries') ?>
-                                    </li>
-                                    <li id="languages">
-                                        <?php sb_e('Languages') ?>
-                                    </li>
-                                    <li id="browsers">
-                                        <?php sb_e('Browsers') ?>
-                                    </li>
-                                    <li id="os">
-                                        <?php sb_e('Operating systems') ?>
-                                    </li>
-                                    <li class="sb-tab-nav-title">
-                                        <?php sb_e('Automation') ?>
-                                    </li>
-                                    <li id="subscribe">
-                                        <?php sb_e('Subscribe') ?>
-                                    </li>
-                                    <li id="follow-up">
-                                        <?php sb_e('Follow up') ?>
-                                    </li>
-                                    <li id="message-automations">
-                                        <?php sb_e('Message automations') ?>
-                                    </li>
-                                    <li id="email-automations">
-                                        <?php sb_e('Email automations') ?>
-                                    </li>
-                                    <?php
-                                    if ($sms) {
-                                        echo '<li id="sms-automations">' . sb_('Text message automations') . '</li>';
-                                    }
-                                    ?>
-                                    <li class="sb-tab-nav-title">
-                                        <?php sb_e('Articles') ?>
-                                    </li>
-                                    <li id="articles-searches">
-                                        <?php sb_e('Searches') ?>
-                                    </li>
-                                    <li id="articles-views">
-                                        <?php sb_e('Article views') ?>
-                                    </li>
-                                    <li id="articles-views-single">
-                                        <?php sb_e('Article views by article') ?>
-                                    </li>
-                                    <li id="articles-ratings">
-                                        <?php sb_e('Article ratings') ?>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div class="sb-content sb-scroll-area">
-                                <div class="sb-reports-chart">
-                                    <div class="chart-cnt">
-                                        <canvas></canvas>
-                                    </div>
-                                </div>
-                                <div class="sb-reports-sidebar">
-                                    <div class="sb-title sb-reports-title"></div>
-                                    <p class="sb-reports-text"></p>
-                                    <div class="sb-collapse">
-                                        <div>
-                                            <table class="sb-table"></table>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p class="sb-no-results">
-                                    <?php echo sb_('No data found.') ?>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                <?php } ?>
-                <?php if ($active_areas['articles']) { ?>
-                    <div class="sb-area-articles sb-loading">
-                        <div class="sb-top-bar">
-                            <div>
-                                <h2>
-                                    <?php sb_e('Articles') ?>
-                                </h2>
-                                <div class="sb-menu-wide sb-menu-articles">
-                                    <div>
-                                        <?php sb_e('Articles') ?>
-                                    </div>
-                                    <ul>
-                                        <li data-type="articles" class="sb-active">
-                                            <?php sb_e('Articles') ?>
-                                        </li>
-                                        <li data-type="categories">
-                                            <?php sb_e('Categories') ?>
-                                        </li>
-                                        <li data-type="settings">
-                                            <?php sb_e('Settings') ?>
-                                        </li>
-                                        <?php
-                                        if ($active_areas['reports']) {
-                                            echo '<li data-type="reports">' . sb_('Reports') . '</li>';
-                                        }
-                                        sb_docs_link('#articles');
-                                        ?>
-                                    </ul>
-                                </div>
-                            </div>
-                            <div>
-                                <a class="sb-btn-icon sb-view-article" href="" target="_blank">
-                                    <i class="sb-icon-next"></i>
-                                </a>
-                                <a class="sb-btn sb-save-articles sb-icon">
-                                    <i class="sb-icon-check"></i>
-                                    <?php sb_e('Save changes') ?>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="sb-tab sb-inner-tab sb-scroll-area">
-                            <div class="sb-nav sb-nav-only">
-                                <ul class="ul-articles"></ul>
-                                <ul class="ul-categories"></ul>
-                                <div class="sb-add-category sb-btn sb-icon sb-btn-white">
-                                    <i class="sb-icon-plus"></i>
-                                    <?php sb_e('Add new category') ?>
-                                </div>
-                                <div class="sb-add-article sb-btn sb-icon sb-btn-white">
-                                    <i class="sb-icon-plus"></i>
-                                    <?php sb_e('Add new article') ?>
-                                </div>
-                            </div>
-                            <div class="sb-content sb-content-articles sb-loading">
-                                <h2 class="sb-language-switcher-cnt">
-                                    <?php sb_e('Title') ?>
-                                </h2>
-                                <div class="sb-input-setting sb-type-text sb-article-title">
-                                    <div>
-                                        <input type="text" />
-                                    </div>
-                                </div>
-                                <h2>
-                                    <?php sb_e('Content') ?>
-                                </h2>
-                                <div class="sb-input-setting sb-type-textarea sb-article-content">
-                                    <div>
-                                        <?php echo sb_get_setting('disable-editor-js') ? '<textarea></textarea>' : '<div id="editorjs"></div>' ?>
-                                    </div>
-                                </div>
-                                <h2>
-                                    <?php sb_e('External link') ?>
-                                </h2>
-                                <div class="sb-input-setting sb-type-text sb-article-link">
-                                    <div>
-                                        <input type="text" />
-                                    </div>
-                                </div>
-                                <div class="sb-article-categories sb-grid">
-                                    <div>
-                                        <h2>
-                                            <?php sb_e('Parent category') ?>
-                                        </h2>
-                                        <div class="sb-input-setting sb-type-select">
-                                            <div>
-                                                <select id="article-parent-categories"></select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h2>
-                                            <?php sb_e('Categories') ?>
-                                        </h2>
-                                        <div class="sb-input-setting sb-type-select">
-                                            <div>
-                                                <select id="article-categories"></select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <h2 id="sb-article-id"></h2>
-                            </div>
-                            <div class="sb-content sb-content-categories sb-loading">
-                                <h2 class="sb-language-switcher-cnt">
-                                    <?php sb_e('Name') ?>
-                                </h2>
-                                <div class="sb-input-setting sb-type-text">
-                                    <div>
-                                        <input id="category-title" type="text" />
-                                    </div>
-                                </div>
-                                <h2>
-                                    <?php sb_e('Description') ?>
-                                </h2>
-                                <div class="sb-input-setting sb-type-textarea">
-                                    <div>
-                                        <textarea id="category-description"></textarea>
-                                    </div>
-                                </div>
-                                <h2>
-                                    <?php sb_e('Image') ?>
-                                </h2>
-                                <div data-type="image" class="sb-input sb-input-setting sb-input-image">
-                                    <div id="category-image" class="image">
-                                        <div class="sb-icon-close"></div>
-                                    </div>
-                                </div>
-                                <h2 class="category-parent">
-                                    <?php sb_e('Parent category') ?>
-                                </h2>
-                                <div data-type="checkbox" class="sb-input-setting sb-type-checkbox category-parent">
-                                    <div class="input">
-                                        <input id="category-parent" type="checkbox" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                <?php } ?>
             </main>
             <?php
             sb_profile_box();
@@ -1437,6 +1362,7 @@ function sb_component_admin() {
             sb_direct_message_box();
             sb_app_box();
             if (defined('SB_DIALOGFLOW')) {
+                require_once(SB_PATH . '/apps/dialogflow/components.php');
                 sb_dialogflow_intent_box();
             }
             if (defined('SB_WHATSAPP')) {
@@ -1551,7 +1477,7 @@ function sb_users_table_extra_fields() {
 
 function sb_dialogflow_languages_list() {
     $languages = json_decode(file_get_contents(SB_PATH . '/apps/dialogflow/dialogflow_languages.json'), true);
-    $code = '<div data-type="select" class="sb-input-setting sb-type-select sb-dialogflow-languages"><div class="input"><select><option value="">' . sb_('Default') . '</option>';
+    $code = '<div data-type="select" class="sb-setting sb-type-select sb-dialogflow-languages"><div class="input"><select><option value="">' . sb_('Default') . '</option>';
     for ($i = 0; $i < count($languages); $i++) {
         $code .= '<option value="' . $languages[$i][1] . '">' . $languages[$i][0] . '</option>';
     }
@@ -1563,17 +1489,17 @@ function sb_conversations_filter($cloud_active_apps) {
         return;
     }
     $is_cloud = sb_is_cloud();
-    $departments = sb_is_agent(false, true, true) || !sb_isset(sb_get_active_user(), 'department') ? sb_get_setting('departments') : false;
-    $count = is_array($departments) ? count($departments) : 0;
-    $sources = [['em', 'Email', true], ['tk', 'Tickets', 'SB_TICKETS'], ['wa', 'WhatsApp', 'SB_WHATSAPP'], ['fb', 'Messenger', 'SB_MESSENGER'], ['ig', 'Instagram', 'SB_MESSENGER'], ['tg', 'Telegram', 'SB_TELEGRAM'], ['tw', 'Twitter', 'SB_TWITTER'], ['bm', 'Business Messages', 'SB_GBM'], ['vb', 'Viber', 'SB_VIBER'], ['ln', 'LINE', 'SB_LINE'], ['wc', 'WeChat', 'SB_WECHAT'], ['tm', 'Text message', true]];
+    $departments = sb_is_agent(false, true, true) || !sb_isset(sb_get_active_user(), 'department') ? sb_get_setting('departments', []) : [];
+    $sources = [['em', 'Email', true], ['tk', 'Tickets', 'SB_TICKETS'], ['wa', 'WhatsApp', 'SB_WHATSAPP'], ['fb', 'Messenger', 'SB_MESSENGER'], ['ig', 'Instagram', 'SB_MESSENGER'], ['tg', 'Telegram', 'SB_TELEGRAM'], ['tw', 'Twitter', 'SB_TWITTER'], ['vb', 'Viber', 'SB_VIBER'], ['ln', 'LINE', 'SB_LINE'], ['wc', 'WeChat', 'SB_WECHAT'], ['za', 'Zalo', 'SB_ZALO'], ['tm', 'Text message', true]];
     $tags = sb_get_multi_setting('disable', 'disable-tags') ? [] : sb_get_setting('tags', []);
-    $code = '<div class="sb-filter-btn"><i class="sb-icon sb-icon-filter"></i><div><div class="sb-select' . ($count ? '' : ' sb-hide') . '"><p>' . sb_('All departments') . '</p><ul><li data-value="">' . sb_('All departments') . '</li>';
-    for ($i = 0; $i < $count; $i++) {
+    $count = count($tags);
+    $code = ($count && sb_get_multi_setting('tags-settings', 'tags-starred') ? '<i class="sb-icon sb-icon-tag-line sb-filter-star" data-color-text="' . $tags[0]['tag-color'] . '" data-value="' . $tags[0]['tag-name'] . '"></i>' : '') . '<div class="sb-filter-btn"><i class="sb-icon sb-icon-filter"></i><div><div class="sb-select' . (is_array($departments) && count($departments) ? '' : ' sb-hide') . '"><p>' . sb_('All departments') . '</p><ul><li data-value="">' . sb_('All departments') . '</li>';
+    for ($i = 0; $i < count($departments); $i++) {
         $code .= '<li data-value="' . $departments[$i]['department-id'] . '">' . ucfirst(sb_($departments[$i]['department-name'])) . '</li>';
     }
     $code .= '</ul></div>';
     if (!sb_get_multi_setting('disable', 'disable-channels-filter')) {
-        $code .= '<div class="sb-select"><p>' . sb_('All channels') . '</p><ul><li data-value="false">' . sb_('All channels') . '</li><li data-value="">' . sb_('Chat') . '</li>';
+        $code .= '<div class="sb-select"><p>' . sb_('All channels') . '</p><ul><li data-value="false">' . sb_('All channels') . '</li><li data-value="chat">' . sb_('Chat') . '</li>';
         for ($i = 0; $i < count($sources); $i++) {
             if ($sources[$i][2] === true || (defined($sources[$i][2]) && (!$is_cloud || in_array(strtolower(substr($sources[$i][2], 3)), $cloud_active_apps)))) {
                 $code .= '<li data-value="' . $sources[$i][0] . '">' . $sources[$i][1] . '</li>';
@@ -1583,9 +1509,9 @@ function sb_conversations_filter($cloud_active_apps) {
     } else {
         $code .= '<div class="sb-select sb-hide"></div>';
     }
-    if (count($tags)) {
+    if ($count) {
         $code .= '<div class="sb-select"><p>' . sb_('All tags') . '</p><ul><li data-value="">' . sb_('All tags') . '</li>';
-        for ($i = 0; $i < count($tags); $i++) {
+        for ($i = 0; $i < $count; $i++) {
             $code .= '<li data-value="' . $tags[$i]['tag-name'] . '">' . $tags[$i]['tag-name'] . '</li>';
         }
         $code .= '</ul></div>';

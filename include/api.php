@@ -20,6 +20,16 @@ if (isset($_GET['piping'])) {
     sb_cloud_load_by_url();
     sb_cron_email_notifications();
     die();
+} else if (isset($_GET['open-ai-training'])) {
+    sb_cloud_load_by_url();
+    if (sb_is_cloud() && sb_get_external_setting('open-ai-training-cloud', 0) > (time() - 604800)) {
+        die('Training allowed only once every 7 days.');
+    }
+    sb_open_ai_trainig_server_side();
+    if (sb_is_cloud()) {
+        sb_save_external_setting('open-ai-training-cloud', time());
+    }
+    die();
 }
 
 // SMS
@@ -41,7 +51,7 @@ if (isset($_POST['AccountSid']) && isset($_POST['From'])) {
             $extra['city'] = [ucwords(mb_strtolower($_POST['FromCity'])), 'City'];
         }
         if (!empty($_POST['FromCountry'])) {
-            $country_codes = json_decode(file_get_contents(SB_PATH . '/resources/json/countries.json'), true);
+            $country_codes = sb_get_json_resource('json/countries.json');
             $code = strtoupper($_POST['FromCountry']);
             if (isset($country_codes[$code])) {
                 $extra['country'] = [$country_codes[$code], 'Country'];
@@ -98,7 +108,7 @@ if (isset($_POST['AccountSid']) && isset($_POST['From'])) {
             }
             if ($extension) {
                 $file_name = basename($url) . $extension;
-                array_push($attachments, [$file_name, sb_download_file($url, $file_name)]);
+                array_push($attachments, [$file_name, sb_download_file($url, $file_name, false, ['Authorization: Basic  ' . base64_encode(sb_get_multi_setting('sms', 'sms-user') . ':' . sb_get_multi_setting('sms', 'sms-token'))])]);
             }
         }
     }
@@ -294,21 +304,25 @@ function sb_process_api() {
         'import-settings' => ['file_url'],
         'count-conversations' => [],
         'check-conversations-assignment' => ['conversation_ids'],
-        'gbm-send-message' => ['google_conversation_id'],
         'messenger-send-message' => ['psid', 'facebook_page_id'],
         'whatsapp-send-message' => ['to'],
+        'whatsapp-send-template' => ['to'],
         'telegram-send-message' => ['chat_id'],
         'viber-send-message' => ['viber_id'],
+        'zalo-send-message' => ['zalo_id'],
         'line-send-message' => ['line_id'],
         'wechat-send-message' => ['open_id'],
         'init-articles' => []
     ];
-
     if (!isset($functions[$function_name])) {
         sb_api_error(sb_error('function-not-found', $function_name, 'Function ' . $function_name . ' not found. Check the function name.'));
     }
-
-    if (!isset($_POST['token'])) {
+    $token = sb_isset($_POST, 'token');
+    if (!$token) {
+        $HEADERS = apache_request_headers();
+        $token = sb_isset($HEADERS, 'token');
+    }
+    if (!$token) {
         sb_api_error(sb_error('token-not-found', $function_name, 'Admin token is required. Get it from ' . (sb_is_cloud() ? CLOUD_URL . '/account.' : 'Users > Your admin user profile box.')));
     } else if (sb_is_cloud()) {
         require_once(SB_CLOUD_PATH . '/account/functions.php');
@@ -386,11 +400,11 @@ function sb_process_api() {
         case 'update-messages-status':
             $json_keys = ['message_ids'];
             break;
-        case 'gbm-send-message':
         case 'messenger-send-message':
         case 'whatsapp-send-message':
         case 'telegram-send-message':
         case 'viber-send-message':
+        case 'zalo-send-message':
         case 'line-send-message':
         case 'wechat-send-message':
         case 'messaging-platforms-send-message':
@@ -419,6 +433,9 @@ function sb_process_api() {
             break;
         case 'open-ai-curl':
             $json_keys = ['post_fields'];
+            break;
+        case 'whatsapp-send-template':
+            $json_keys = ['parameters'];
             break;
     }
     for ($i = 0; $i < count($json_keys); $i++) {

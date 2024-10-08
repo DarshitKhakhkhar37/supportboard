@@ -96,6 +96,11 @@
           "title": "One conversation per agent"
         },
         {
+          "type": "checkbox",
+          "id": "agents-menu-online-only",
+          "title": "Display online agents only"
+        },
+        {
           "type": "text",
           "id": "agents-menu-title",
           "title": "Dashboard title"
@@ -150,6 +155,11 @@
         },
         {
           "type": "text",
+          "id": "messaging-channels-za",
+          "title": "Zalo"
+        },
+        {
+          "type": "text",
           "id": "messaging-channels-ln",
           "title": "LINE"
         },
@@ -172,138 +182,6 @@
     }
   ],
   "messages": [
-    {
-      "type": "multi-input",
-      "id": "chat-timetable",
-      "title": "Offline message",
-      "content": "Notify the user when their message is sent outside of the scheduled office hours or all agents are offline.",
-      "help": "https://board.support/docs/#offline-message",
-      "value": [
-        {
-          "type": "checkbox",
-          "id": "chat-timetable-active",
-          "title": "Active"
-        },
-        {
-          "type": "checkbox",
-          "id": "chat-timetable-hide",
-          "title": "Hide timetable"
-        },
-        {
-          "type": "checkbox",
-          "id": "chat-timetable-agents",
-          "title": "Disable agents check"
-        },
-        {
-          "type": "select",
-          "id": "chat-timetable-type",
-          "title": "Message type",
-          "value": [
-            [ "", "Chat message" ],
-            [ "info", "Info message" ],
-            [ "header", "Header" ]
-          ]
-        },
-        {
-          "type": "text",
-          "id": "chat-timetable-title",
-          "title": "Title"
-        },
-        {
-          "type": "textarea",
-          "id": "chat-timetable-msg",
-          "title": "Message"
-        }
-      ]
-    },
-    {
-      "type": "multi-input",
-      "id": "privacy",
-      "title": "Privacy message",
-      "content": "Before initiating the chat, the user must accept a privacy message in order to gain access.",
-      "help": "https://board.support/docs/#privacy-message",
-      "value": [
-        {
-          "type": "checkbox",
-          "id": "privacy-active",
-          "title": "Active"
-        },
-        {
-          "type": "checkbox",
-          "id": "privacy-disable-channels",
-          "title": "Disable for messaging channels"
-        },
-        {
-          "type": "text",
-          "id": "privacy-title",
-          "title": "Title"
-        },
-        {
-          "type": "textarea",
-          "id": "privacy-msg",
-          "title": "Message"
-        },
-        {
-          "type": "textarea",
-          "id": "privacy-msg-decline",
-          "title": "Declined message"
-        },
-        {
-          "type": "text",
-          "id": "privacy-link",
-          "title": "Optional link"
-        },
-        {
-          "type": "text",
-          "id": "privacy-link-text",
-          "title": "Link name"
-        },
-        {
-          "type": "text",
-          "id": "privacy-btn-approve",
-          "title": "Accept button text"
-        },
-        {
-          "type": "text",
-          "id": "privacy-btn-decline",
-          "title": "Decline button text"
-        }
-      ]
-    },
-    {
-      "type": "multi-input",
-      "id": "popup-message",
-      "title": "Popup message",
-      "content": "Show a pop-up notification to all users.",
-      "help": "https://board.support/docs/#pop-up-message",
-      "value": [
-        {
-          "type": "checkbox",
-          "id": "popup-active",
-          "title": "Active"
-        },
-        {
-          "type": "checkbox",
-          "id": "popup-mobile-hidden",
-          "title": "Hide on mobile"
-        },
-        {
-          "type": "upload-image",
-          "id": "popup-image",
-          "title": "Profile image"
-        },
-        {
-          "type": "text",
-          "id": "popup-title",
-          "title": "Title"
-        },
-        {
-          "type": "textarea",
-          "id": "popup-msg",
-          "title": "Message"
-        }
-      ]
-    },
     {
       "type": "multi-input",
       "id": "welcome-message",
@@ -405,6 +283,11 @@
           "title": "Delay (ms)"
         },
         {
+          "type": "checkbox",
+          "id": "follow-sound",
+          "title": "Sound"
+        },
+        {
           "type": "textarea",
           "id": "follow-msg",
           "title": "Message"
@@ -418,6 +301,69 @@
           "type": "text",
           "id": "follow-placeholder",
           "title": "Placeholder text"
+        }
+      ]
+    },
+    {
+      "type": "multi-input",
+      "setting": "emails",
+      "id": "email-subscribe",
+      "title": "Follow up email",
+      "content": "Email template sent to the user when the user communicate the email via the follow up message form. You can use text, HTML, and the following merge fields: {user_name}, {user_email}.",
+      "value": [
+        {
+          "type": "text",
+          "id": "email-subscribe-subject",
+          "title": "Subject"
+        },
+        {
+          "type": "textarea",
+          "id": "email-subscribe-content",
+          "title": "Content"
+        }
+      ]
+    },
+    {
+      "type": "multi-input",
+      "id": "chat-timetable",
+      "title": "Offline message",
+      "content": "Notify the user when their message is sent outside of the scheduled office hours or all agents are offline.",
+      "help": "https://board.support/docs/#offline-message",
+      "value": [
+        {
+          "type": "checkbox",
+          "id": "chat-timetable-active",
+          "title": "Active"
+        },
+        {
+          "type": "checkbox",
+          "id": "chat-timetable-hide",
+          "title": "Hide timetable"
+        },
+        {
+          "type": "checkbox",
+          "id": "chat-timetable-agents",
+          "title": "Disable agents check"
+        },
+        {
+          "type": "select",
+          "id": "chat-timetable-type",
+          "title": "Message type",
+          "value": [
+            [ "", "Chat message" ],
+            [ "info", "Info message" ],
+            [ "header", "Header" ]
+          ]
+        },
+        {
+          "type": "text",
+          "id": "chat-timetable-title",
+          "title": "Title"
+        },
+        {
+          "type": "textarea",
+          "id": "chat-timetable-msg",
+          "title": "Message"
         }
       ]
     },
@@ -446,79 +392,89 @@
     },
     {
       "type": "multi-input",
-      "id": "subscribe-message",
-      "title": "Subscribe message",
-      "content": "Request the user to provide their email address and then send a confirmation email to the user.",
-      "help": "https://board.support/docs/#subscribe-message",
+      "id": "popup-message",
+      "title": "Popup message",
+      "content": "Show a pop-up notification to all users.",
+      "help": "https://board.support/docs/#pop-up-message",
       "value": [
         {
           "type": "checkbox",
-          "id": "subscribe-active",
+          "id": "popup-active",
           "title": "Active"
         },
         {
           "type": "checkbox",
-          "id": "subscribe-disable-channels",
-          "title": "Disable for messaging channels"
+          "id": "popup-mobile-hidden",
+          "title": "Hide on mobile"
         },
         {
-          "type": "checkbox",
-          "id": "subscribe-sound",
-          "title": "Sound"
-        },
-        {
-          "type": "number",
-          "id": "subscribe-delay",
-          "title": "Delay (ms)"
-        },
-        {
-          "type": "checkbox",
-          "id": "subscribe-name",
-          "title": "Name"
-        },
-        {
-          "type": "checkbox",
-          "id": "subscribe-last-name",
-          "title": "Last name"
+          "type": "upload-image",
+          "id": "popup-image",
+          "title": "Profile image"
         },
         {
           "type": "text",
-          "id": "subscribe-title",
+          "id": "popup-title",
           "title": "Title"
         },
         {
           "type": "textarea",
-          "id": "subscribe-msg",
+          "id": "popup-msg",
           "title": "Message"
-        },
-        {
-          "type": "textarea",
-          "id": "subscribe-msg-success",
-          "title": "Success message"
-        },
-        {
-          "type": "text",
-          "id": "subscribe-placeholder",
-          "title": "Placeholder text"
         }
       ]
     },
     {
       "type": "multi-input",
-      "setting": "emails",
-      "id": "email-subscribe",
-      "title": "Subscribe message - Email",
-      "content": "Subscribe message email template sent to the user when the user communicate the email via the subscribe message form. You can use text, HTML, and the following merge fields: {user_name}, {user_email}.",
+      "id": "privacy",
+      "title": "Privacy message",
+      "content": "Before initiating the chat, the user must accept a privacy message in order to gain access.",
+      "help": "https://board.support/docs/#privacy-message",
       "value": [
         {
+          "type": "checkbox",
+          "id": "privacy-active",
+          "title": "Active"
+        },
+        {
+          "type": "checkbox",
+          "id": "privacy-disable-channels",
+          "title": "Disable for messaging channels"
+        },
+        {
           "type": "text",
-          "id": "email-subscribe-subject",
-          "title": "Subject"
+          "id": "privacy-title",
+          "title": "Title"
         },
         {
           "type": "textarea",
-          "id": "email-subscribe-content",
-          "title": "Content"
+          "id": "privacy-msg",
+          "title": "Message"
+        },
+        {
+          "type": "textarea",
+          "id": "privacy-msg-decline",
+          "title": "Declined message"
+        },
+        {
+          "type": "text",
+          "id": "privacy-link",
+          "title": "Optional link"
+        },
+        {
+          "type": "text",
+          "id": "privacy-link-text",
+          "title": "Link name"
+        },
+        {
+          "type": "text",
+          "id": "privacy-btn-approve",
+          "title": "Accept button text"
+        },
+        {
+          "type": "text",
+          "id": "privacy-btn-decline",
+          "title": "Decline button text"
         }
       ]
     }
@@ -626,61 +582,61 @@
       ]
     },
     {
-      "type": "multi-input",
-      "id": "supervisor",
-      "title": "Supervisor",
+      "type": "repeater",
+      "id": "supervisors",
+      "title": "Supervisors",
       "content": "Set which actions to allow supervisors.",
       "help": "https://board.support/docs/#agents",
-      "value": [
+      "items": [
         {
           "type": "text",
           "id": "supervisor-id",
-          "title": "Admin IDs"
+          "name": "Admin IDs"
         },
         {
           "type": "checkbox",
           "id": "supervisor-users-area",
-          "title": "Users area"
+          "name": "Users area"
         },
         {
           "type": "checkbox",
           "id": "supervisor-settings-area",
-          "title": "Settings area"
+          "name": "Settings area"
         },
         {
           "type": "checkbox",
           "id": "supervisor-reports-area",
-          "title": "Reports area"
+          "name": "Reports area"
         },
         {
           "type": "checkbox",
           "id": "supervisor-articles-area",
-          "title": "Articles area"
+          "name": "Articles area"
         },
         {
           "type": "checkbox",
           "id": "supervisor-edit-user",
-          "title": "Edit user"
+          "name": "Edit user"
         },
         {
           "type": "checkbox",
           "id": "supervisor-agents-tab",
-          "title": "Agents and admins tab"
+          "name": "Agents and admins tab"
         },
         {
           "type": "checkbox",
           "id": "supervisor-delete-conversation",
-          "title": "Delete conversation"
+          "name": "Delete conversation"
         },
         {
           "type": "checkbox",
           "id": "supervisor-delete-message",
-          "title": "Delete message"
+          "name": "Delete message"
         },
         {
           "type": "checkbox",
           "id": "supervisor-send-message",
-          "title": "Send message"
+          "name": "Send message"
         }
       ]
     },
@@ -754,6 +710,11 @@
           "type": "checkbox",
           "id": "tags-show",
           "title": "Display in conversation list"
+        },
+        {
+          "type": "checkbox",
+          "id": "tags-starred",
+          "title": "Starred tag"
         }
       ]
     },
@@ -1253,6 +1214,13 @@
           "type": "text",
           "id": "email-sender-name",
           "title": "Sender name"
+        },
+        {
+          "type": "button",
+          "id": "email-server-troubleshoot",
+          "title": "Troubleshoot",
+          "button-url": "#",
+          "button-text": "Troubleshoot problems"
         }
       ]
     },
@@ -1449,18 +1417,6 @@
     },
     {
       "type": "checkbox",
-      "id": "registration-profile-img",
-      "title": "Profile image",
-      "content": "Include a profile image field in the registration form to allow a user to upload a profile image."
-    },
-    {
-      "type": "checkbox",
-      "id": "registration-last-name",
-      "title": "Last name",
-      "content": "Include the last name field in the registration form."
-    },
-    {
-      "type": "checkbox",
       "id": "registration-password",
       "title": "Password",
       "content": "Include the password field in the registration form."
@@ -1475,8 +1431,18 @@
       "type": "multi-input",
       "id": "registration-fields",
       "title": "Optional registration fields",
-      "content": "Choose which optional fields to include in the registration form. Name, email, and password fields are all included by default.",
+      "content": "Choose which optional fields to include in the registration form. Name and email fields are all included by default.",
       "value": [
+        {
+          "type": "checkbox",
+          "id": "reg-profile-img",
+          "title": "Profile image"
+        },
+        {
+          "type": "checkbox",
+          "id": "reg-last-name",
+          "title": "Last name"
+        },
         {
           "type": "checkbox",
           "id": "reg-phone",
@@ -1506,21 +1472,6 @@
           "type": "checkbox",
           "id": "reg-company",
           "title": "Company"
-        },
-        {
-          "type": "checkbox",
-          "id": "reg-facebook",
-          "title": "Facebook"
-        },
-        {
-          "type": "checkbox",
-          "id": "reg-twitter",
-          "title": "Twitter"
-        },
-        {
-          "type": "checkbox",
-          "id": "reg-linkedin",
-          "title": "LinkedIn"
         },
         {
           "type": "checkbox",
@@ -1864,6 +1815,29 @@
       "content": "Allow registration with an email and a phone number already registered."
     },
     {
+      "type": "checkbox",
+      "id": "display-users-thumb",
+      "title": "Display user's profile image",
+      "content": "Display the user's profile image within the chat."
+    },
+    {
+      "type": "checkbox",
+      "id": "hide-agents-thumb",
+      "title": "Hide agent's profile image",
+      "content": "Hide the agent's profile image within the chat."
+    },
+    {
+      "type": "select",
+      "id": "sender-name",
+      "title": "Show sender's name",
+      "content": "Show the sender's name in every message.",
+      "value": [
+        [ "", "Disabled" ],
+        [ "chat", "Chat" ],
+        [ "chat-admin", "Chat and admin" ]
+      ]
+    },
+    {
       "type": "text",
       "id": "bot-name",
       "title": "Bot name",
@@ -1912,29 +1886,6 @@
       "value": [
         [ "right", "Right" ],
         [ "left", "Left" ]
-      ]
-    },
-    {
-      "type": "checkbox",
-      "id": "display-users-thumb",
-      "title": "Display user's profile image",
-      "content": "Display the user's profile image within the chat."
-    },
-    {
-      "type": "checkbox",
-      "id": "hide-agents-thumb",
-      "title": "Hide agent's profile image",
-      "content": "Hide the agent's profile image within the chat."
-    },
-    {
-      "type": "select",
-      "id": "sender-name",
-      "title": "Show sender's name",
-      "content": "Show the sender's name in every message.",
-      "value": [
-        [ "", "Disabled" ],
-        [ "chat", "Chat" ],
-        [ "chat-admin", "Chat and admin" ]
       ]
     },
     {
@@ -2145,7 +2096,8 @@
             [ "activecampaign", "ActiveCampaign" ],
             [ "mailerlite", "MailerLite" ],
             [ "mailjet", "Mailjet" ],
-            [ "sendy", "Sendy" ]
+            [ "sendy", "Sendy" ],
+            [ "sendfox", "SendFox" ]
           ]
         },
         {
@@ -2204,11 +2156,6 @@
           "type": "text",
           "id": "departments-label",
           "title": "Label"
-        },
-        {
-          "type": "text",
-          "id": "departments-single-label",
-          "title": "Single label"
         },
         {
           "type": "text",
@@ -2358,11 +2305,6 @@
       "value": [
         {
           "type": "checkbox",
-          "id": "performance-phone-codes",
-          "title": "Phone codes"
-        },
-        {
-          "type": "checkbox",
           "id": "performance-minify",
           "title": "Minify JS"
         },
@@ -2370,6 +2312,11 @@
           "type": "checkbox",
           "id": "performance-reports",
           "title": "Reports"
+        },
+        {
+          "type": "checkbox",
+          "id": "performance-articles",
+          "title": "Articles"
         }
       ]
     },

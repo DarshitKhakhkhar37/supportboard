@@ -550,7 +550,6 @@ function sb_subscribe_email($email) {
     $settings = sb_get_multilingual_setting('emails', 'email-subscribe');
     $subject = $settings['email-subscribe-subject'];
     $content = $settings['email-subscribe-content'];
-    sb_reports_update('subscribe');
     if ($settings && !empty($subject) && !empty($content)) {
         return sb_email_send($email, sb_merge_fields($subject), sb_merge_fields($content));
     }
@@ -756,6 +755,11 @@ function sb_newsletter($email, $first_name = '', $last_name = '') {
                 $header = [];
                 $post_fields = ['email' => $email, 'name' => sb_get_user_name(['first_name' => $first_name, 'last_name' => $last_name]), 'list' => $list_id[1], 'api_key' => $key];
                 break;
+            case 'sendfox':
+                array_push($header, 'Authorization: Bearer ' . $key);
+                $url = 'https://api.sendfox.com/contacts';
+                $post_fields = ['email' => $email, 'first_name' => $first_name, 'last_name' => $last_name, 'lists' => [$list_id]];
+                break;
         }
         if ($url) {
             $response = sb_curl($url, empty($header) ? $post_fields : json_encode($post_fields), $header, $type);
@@ -798,13 +802,14 @@ function sb_cron_email_notifications() {
 }
 
 function sb_rich_messages_to_html($message) {
-    $shortcode = sb_get_shortcode($message);
+    $shortcodes = sb_get_shortcode($message);
     $extra_values = [];
     $div_button_start = '<div>';
     $div_button = '<div style="background-color:#028BE5;color:#FFF;border-radius:4px;padding:3px 6px;float:left;margin-right:5px;cursor:default">';
     $div_button_end = '<div style="width:100%;clear:both"></div></div>';
     $div_input = '<div style="margin-top:5px;border:1px solid #999999;background:#FFF;color:#c2c2c2;font-size:13px;line-height:14px;border-radius:4px;padding:6px 10px;cursor:text;">';
-    if ($shortcode) {
+    for ($j = 0; $j < count($shortcodes); $j++) {
+        $shortcode = $shortcodes[$j];
         $shortcode_name = $shortcode['shortcode_name'];
         $message = trim(str_replace($shortcode['shortcode'], '', $message) . (empty($shortcode['title']) ? '' : '<b>' . sb_($shortcode['title']) . '</b><br>') . sb_isset($shortcode, 'message', ''));
         if ($message) {

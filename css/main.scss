@@ -578,6 +578,27 @@ div ul.sb-menu li:hover,
         }
     }
 
+    .sb-status-typing {
+
+
+        &:before {
+            display: none;
+        }
+
+        &:after {
+            content: "...";
+            position: absolute;
+            width: 15px;
+            left: calc(100% + 5px);
+            bottom: 0;
+            font-weight: 500;
+            letter-spacing: 1px;
+            overflow: hidden;
+            white-space: nowrap;
+            animation: sb-typing 1s infinite;
+        }
+    }
+
     .sb-header-agent {
         padding: 20px;
         position: absolute;
@@ -585,7 +606,7 @@ div ul.sb-menu li:hover,
         right: 0;
         top: 0 !important;
         opacity: 1 !important;
-        z-index: 9;
+        z-index: 11;
 
         & + .sb-list {
             padding-top: 90px;
@@ -641,6 +662,7 @@ div ul.sb-menu li:hover,
             .sb-name {
                 letter-spacing: 0.5px;
                 font-size: 14px;
+                white-space: nowrap;
             }
 
             .sb-status {
@@ -671,23 +693,6 @@ div ul.sb-menu li:hover,
             .sb-status-typing {
                 padding-left: 0;
                 float: left;
-
-                &:before {
-                    display: none;
-                }
-
-                &:after {
-                    content: "...";
-                    position: absolute;
-                    width: 15px;
-                    left: calc(100% + 5px);
-                    bottom: 0;
-                    font-weight: 500;
-                    letter-spacing: 1px;
-                    overflow: hidden;
-                    white-space: nowrap;
-                    animation: sb-typing 1s infinite;
-                }
             }
         }
     }
@@ -742,7 +747,7 @@ div ul.sb-menu li:hover,
     > .sb-body {
         display: none;
         position: absolute;
-        width: 360px;
+        width: 385px;
         max-height: 650px;
         background: $white;
         right: 0;
@@ -1300,8 +1305,16 @@ div ul.sb-menu li:hover,
         }
     }
 
-    .sb-agents-list img {
-        border-radius: 50%;
+    .sb-agents-list {
+        .sb-no-results {
+            padding: 10px 0;
+            display: block;
+            font-size: 13px;
+        }
+
+        img {
+            border-radius: 50%;
+        }
     }
 
     .sb-label-date-top {

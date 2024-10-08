@@ -181,8 +181,9 @@ function sb_get_active_user($login_data = false, $database = false, $login_app =
             unset($_COOKIE['sb-login']);
             $SB_LOGIN = false;
             return sb_get_active_user(false, $database, $login_app);
-        } else
+        } else {
             $return = false;
+        }
     }
     if ($return !== false) {
         if (!$SB_LOGIN) {
@@ -238,8 +239,18 @@ function sb_get_agent_department() {
 }
 
 function sb_supervisor() {
-    $settings = sb_get_setting('supervisor');
-    return in_array(sb_get_active_user_ID(), explode(',', str_replace(' ', '', sb_isset($settings, 'supervisor-id')))) ? $settings : false;
+    $supervisors = sb_get_setting('supervisors', []);
+    $active_user_id = sb_get_active_user_ID();
+    $deprecated = sb_get_setting('supervisor'); // Deprecated
+    if ($deprecated && !empty($deprecated['supervisor-id'])) { // Deprecated
+        $supervisors[] = $deprecated; // Deprecated
+    } // Deprecated
+    for ($i = 0; $i < count($supervisors); $i++) {
+        if (in_array($active_user_id, explode(',', str_replace(' ', '', $supervisors[$i]['supervisor-id'])))) {
+            return $supervisors[$i];
+        }
+    }
+    return false;
 }
 
 function sb_envato_purchase_code_validation($purchase_code, $full_details = false) {
@@ -301,6 +312,7 @@ function sb_envato_purchase_code_validation($purchase_code, $full_details = fals
  * 35. Get agent rating
  * 36. Split a full name into first name and last name
  * 37. Get the IP information
+ * 38. Return the user detail fields
  *
  */
 
@@ -319,8 +331,9 @@ function sb_add_user($settings = [], $settings_extra = [], $hash_password = true
         if ($existing_email) {
             if (sb_get_setting('duplicate-emails') && !sb_is_agent($existing_email['user_type'])) {
                 sb_db_query('UPDATE sb_users SET email = NULL WHERE email = "' . $settings['email'] . '"');
-            } else
+            } else {
                 return new SBValidationError('duplicate-email');
+            }
         }
     }
     if (!empty($settings_extra['phone']) && sb_get_user_by('phone', $settings_extra['phone'][0]) && !sb_get_setting('duplicate-emails')) {
@@ -430,13 +443,18 @@ function sb_delete_users($user_ids) {
         }
     }
     $query = substr($query, 0, -1);
-    $ids = sb_db_get('SELECT id FROM sb_conversations WHERE user_id IN (' . $query . ')', false);
+    $ids = array_column(sb_db_get('SELECT id FROM sb_conversations WHERE user_id IN (' . $query . ')', false), 'id');
     $profile_images = sb_db_get('SELECT profile_image FROM sb_users WHERE id IN (' . $query . ')', false);
     for ($i = 0; $i < count($ids); $i++) {
-        sb_delete_attachments($ids[$i]['id']);
+        sb_delete_attachments($ids[$i]);
     }
     for ($i = 0; $i < count($profile_images); $i++) {
         sb_file_delete($profile_images[$i]['profile_image']);
+    }
+    if (!empty($ids)) {
+        sb_db_query('DELETE FROM sb_settings WHERE name IN (' . implode(', ', array_map(function ($e) {
+            return '"notes-' . $e . '"';
+        }, $ids)) . ')');
     }
     sb_db_query('UPDATE sb_conversations SET agent_id = NULL WHERE agent_id IN (' . $query . ')');
     return sb_db_query('DELETE FROM sb_users WHERE id IN (' . $query . ')');
@@ -449,26 +467,20 @@ function sb_delete_leads() {
 function sb_update_user($user_id, $settings, $settings_extra = [], $hash_password = true) {
     $user_id = sb_db_escape($user_id, true);
     $keys = ['profile_image', 'first_name', 'last_name', 'email', 'user_type', 'password', 'department'];
-    for ($i = 0; $i < count($keys); $i++) {
-        $settings[$keys[$i]] = sb_isset($settings, $keys[$i], '');
-        if (!is_string($settings[$keys[$i]])) {
-            $settings[$keys[$i]] = $settings[$keys[$i]][0];
-        }
-    }
-    $profile_image = $settings['profile_image'];
-    $first_name = trim($settings['first_name']);
-    $last_name = trim($settings['last_name']);
-    $email = trim($settings['email']);
-    $user_type = $settings['user_type'];
+    $profile_image = sb_isset($settings, 'profile_image');
+    $first_name = trim(sb_isset($settings, 'first_name'));
+    $last_name = trim(sb_isset($settings, 'last_name'));
     $password = isset($settings['password']) && $settings['password'] != '********' ? $settings['password'] : '';
-    $department = sb_isset($settings, 'department', 'NULL');
+    $department = sb_isset($settings, 'department');
+    $user_type = sb_isset($settings, 'user_type');
+    $email = sb_isset($settings, 'email');
     $active_user = sb_get_active_user();
     $query = '';
     if (sb_is_agent($user_type) && !sb_is_agent(false, true, true)) {
         return sb_error('security-error', 'sb_update_user');
     }
     if ($email) {
-        $email = sb_db_escape($email);
+        $email = trim(sb_db_escape($email));
         $existing_email = sb_db_get('SELECT user_type, email FROM sb_users WHERE email = "' . $email . '" AND id <> ' . $user_id);
         if ($existing_email) {
             if (sb_get_setting('duplicate-emails') && !sb_is_agent($existing_email['user_type'])) {
@@ -476,19 +488,36 @@ function sb_update_user($user_id, $settings, $settings_extra = [], $hash_passwor
             } else {
                 return new SBValidationError('duplicate-email');
             }
+        } else {
+            $query .= ', email = "' . $email . '"';
+        }
+        if (sb_is_cloud() && sb_is_agent($user_type)) {
+            $old_email = sb_isset(sb_db_get('SELECT email FROM sb_users WHERE id = ' . $user_id), 'email');
+            if ($old_email && $old_email != $email) {
+                sb_cloud_set_agent($old_email, 'update', $email);
+            }
         }
     }
     if (!empty($settings_extra['phone']) && intval(sb_db_get('SELECT COUNT(*) as count FROM sb_users_data WHERE slug = "phone" AND (value = "' . $settings_extra['phone'][0] . '"' . (strpos($settings_extra['phone'][0], '+') !== false ? (' OR value = "' . str_replace('+', '00', $settings_extra['phone'][0]) . '"') : '') . ') AND user_id <> ' . sb_db_escape($user_id, true))['count']) > 0 && !sb_get_setting('duplicate-emails')) {
         return new SBValidationError('duplicate-phone');
     }
-    if ($user_type == 'user' && $first_name && $last_name && substr($last_name, 0, 1) == '#') {
-        $last_name = '';
+    if (!sb_is_agent() && (!$user_type || !sb_is_agent($user_type))) {
+        $user_type = $email || $active_user['email'] ? 'user' : (intval(sb_db_get('SELECT COUNT(*) AS count FROM sb_conversations WHERE user_id = ' . $user_id)['count']) > 0 ? 'lead' : 'visitor');
     }
-    if (!$profile_image || $profile_image == SB_URL . '/media/user.svg') {
-        $profile_image = sb_get_avatar($first_name, $last_name);
+    if ($user_type) {
+        $query .= ', user_type = "' . sb_db_escape($user_type) . '"';
+    }
+    if ($profile_image) {
+        $query .= ', profile_image = "' . sb_db_escape($profile_image) . '"';
     }
     if ($first_name) {
-        $query .= ', first_name = "' . sb_db_escape($first_name) . '"';
+        $query .= ', first_name = "' . sb_db_escape(ucfirst($first_name)) . '"';
+        if (strpos($active_user['last_name'], '#') === 0) {
+            $last_name = 'NULL';
+        }
+    }
+    if ($last_name || $last_name == 'NULL') {
+        $query .= ', last_name = "' . ($last_name == 'NULL' ? '' : sb_db_escape(ucfirst($last_name))) . '"';
     }
     if ($password) {
         if ($hash_password) {
@@ -496,20 +525,12 @@ function sb_update_user($user_id, $settings, $settings_extra = [], $hash_passwor
         }
         $query .= ', password = "' . sb_db_escape($password) . '"';
     }
-    if (!$department) {
-        $department = 'NULL';
+    if ($department) {
+        $query .= ', department = ' . sb_db_escape($department, true);
     }
-    if (!$user_type && !sb_is_agent($user_type)) {
-        $user_type = $email ? 'user' : (intval(sb_db_get('SELECT COUNT(*) AS count FROM sb_conversations WHERE user_id = ' . $user_id)['count']) > 0 ? 'lead' : 'visitor');
+    if ($query) {
+        $result = sb_db_query('UPDATE sb_users SET ' . substr($query, 1) . ' WHERE id = ' . $user_id);
     }
-    if ($email && sb_is_cloud() && sb_is_agent($user_type)) {
-        $old_email = sb_isset(sb_db_get('SELECT email FROM sb_users WHERE id = ' . $user_id), 'email');
-        if ($old_email && $old_email != $email) {
-            sb_cloud_set_agent($old_email, 'update', $email);
-        }
-    }
-    $query_final = 'UPDATE sb_users SET profile_image = "' . sb_db_escape($profile_image) . '", last_name = "' . sb_db_escape($last_name) . '", user_type = "' . sb_db_escape($user_type) . '", email = ' . (strlen($email) == 0 ? 'NULL' : '"' . sb_db_escape($email) . '"') . ', department = ' . sb_db_escape($department) . $query . ' WHERE id = ' . $user_id;
-    $result = sb_db_query($query_final);
 
     // Extra user details
     if ($active_user && $active_user['id'] == $user_id) {
@@ -520,8 +541,11 @@ function sb_update_user($user_id, $settings, $settings_extra = [], $hash_passwor
         $settings_extra['browser_language'] = ['', ''];
     }
     foreach ($settings_extra as $key => $setting) {
-        if (is_array($setting)) {
-            sb_db_query('REPLACE INTO sb_users_data SET name = "' . sb_db_escape($setting[1]) . '", value = "' . sb_db_escape($setting[0]) . '", slug = "' . sb_db_escape($key) . '", user_id = ' . $user_id);
+        if (!in_array($key, $keys)) {
+            if (!is_array($setting)) {
+                $setting = [$setting, sb_string_slug($key, 'string')];
+            }
+            sb_db_query('REPLACE INTO sb_users_data SET name = "' . sb_db_escape($setting[1]) . '", value = "' . sb_db_escape(ucfirst($setting[0])) . '", slug = "' . sb_db_escape($key) . '", user_id = ' . $user_id);
         }
     }
     sb_db_query('DELETE FROM sb_users_data WHERE user_id = ' . $user_id . ' AND value = ""');
@@ -578,8 +602,9 @@ function sb_update_user_and_message($user_id, $settings, $settings_extra = [], $
         }
         $message = '';
         foreach ($settings as $key => $setting) {
-            if ($setting[0])
-                $message .= sb_string_slug($key, 'string') . ': ' . $setting[0] . PHP_EOL;
+            if ($setting) {
+                $message .= sb_string_slug($key, 'string') . ': ' . $setting . PHP_EOL;
+            }
         }
         foreach ($settings_extra as $key => $setting) {
             $message .= sb_string_slug($key, 'string') . ': ' . $setting[0] . PHP_EOL;
@@ -608,7 +633,7 @@ function sb_get_user($user_id, $extra = false) {
     return false;
 }
 
-function sb_get_users($sorting = ['creation_time', 'DESC'], $user_types = [], $search = '', $pagination = 0, $extra = false, $user_ids = false) {
+function sb_get_users($sorting = ['creation_time', 'DESC'], $user_types = [], $search = '', $pagination = 0, $extra = false, $user_ids = false, $department = false, $tag = false, $source = false) {
     $query = '';
     $query_search = '';
     $count = count($user_types);
@@ -623,11 +648,11 @@ function sb_get_users($sorting = ['creation_time', 'DESC'], $user_types = [], $s
     if ($user_ids) {
         $count_user_ids = count($user_ids);
         if ($count_user_ids) {
-            if ($query) {
-                $query .= ' AND ';
-            }
-            $query .= ' sb_users.id IN (' . sb_db_escape(implode(',', $user_ids)) . ')';
+            $query .= ($query ? ' AND ' : '') . ' sb_users.id IN (' . sb_db_escape(implode(',', $user_ids)) . ')';
         }
+    }
+    if ($department || $tag || $source) {
+        $query .= ($query ? ' AND ' : '') . ' sb_users.id IN (SELECT A.id FROM sb_users A, sb_conversations B WHERE A.id = B.user_id' . ($department ? ' AND B.department = "' . sb_db_escape($department, true) . '"' : '') . ($tag ? ' AND B.tags LIKE "%' . sb_db_escape($tag) . '%"' : '') . ($source ? ' AND ' . ($source == 'chat' ? '(B.source = "" OR B.source IS NULL)' : 'B.source = "' . sb_db_escape($source) . '"') : '') . ')';
     }
     if ($search) {
         $searched_users = sb_search_users($search);
@@ -637,6 +662,8 @@ function sb_get_users($sorting = ['creation_time', 'DESC'], $user_types = [], $s
                 $query_search .= $searched_users[$i]['id'] . ',';
             }
             $query .= ($query ? ' AND ' : '') . 'sb_users.id IN (' . substr($query_search, 0, -1) . ')';
+        } else {
+            return [];
         }
     }
     if ($query) {
@@ -756,7 +783,7 @@ function sb_get_agent($agent_id) {
         for ($i = 0; $i < count($user['details']); $i++) {
             if ($user['details'][$i]['slug'] == 'country') {
                 $country = $user['details'][$i]['value'];
-                $countries = json_decode(file_get_contents(SB_PATH . '/resources/json/countries.json'), true);
+                $countries = sb_get_json_resource('json/countries.json');
                 $user['country_code'] = $countries[$country];
                 if (isset($countries[$country]) && file_exists(SB_PATH . '/media/flags/' . strtolower($countries[$country]) . '.png')) {
                     $user['flag'] = strtolower($countries[$country]) . '.png';
@@ -817,14 +844,12 @@ function sb_get_user_name($user = false) {
 }
 
 function sb_csv_users($user_ids = false) {
-    $custom_fields = sb_get_setting('user-additional-fields');
-    $header = ['Birthdate', 'City', 'Company', 'Country', 'Facebook', 'Language', 'LinkedIn', 'Phone', 'Twitter', 'Website'];
+    $custom_fields = sb_get_setting('user-additional-fields', []);
+    $header = ['Birthdate', 'City', 'Company', 'Country', 'Language', 'Phone', 'Website'];
     $users = sb_db_get('SELECT id, first_name, last_name, email, profile_image, user_type, creation_time FROM sb_users WHERE user_type <> "bot"' . sb_routing_and_department_db('sb_conversations', true) . ' ORDER BY first_name', false);
     $users_response = [];
-    if (isset($custom_fields) && is_array($custom_fields)) {
-        for ($i = 0; $i < count($custom_fields); $i++) {
-            array_push($header, $custom_fields[$i]['extra-field-name']);
-        }
+    for ($i = 0; $i < count($custom_fields); $i++) {
+        array_push($header, $custom_fields[$i]['extra-field-name']);
     }
     for ($i = 0; $i < count($users); $i++) {
         $user = $users[$i];
@@ -940,14 +965,14 @@ function sb_current_url($user_id = false, $url = false) {
 }
 
 function sb_update_bot($name = '', $profile_image = '') {
-    $bot = sb_db_get('SELECT id, profile_image, first_name, last_name FROM sb_users WHERE user_type = "bot" LIMIT 1');
+    $bot = sb_db_get('SELECT id, profile_image, first_name FROM sb_users WHERE user_type = "bot" LIMIT 1');
     if (!$name) {
         $name = 'Bot';
     }
     if (!$profile_image) {
         $profile_image = SB_URL . '/media/user.svg';
     }
-    $settings = ['profile_image' => [$profile_image], 'first_name' => [$name], 'user_type' => ['bot']];
+    $settings = ['profile_image' => $profile_image, 'first_name' => $name, 'user_type' => 'bot'];
     if (!$bot) {
         return sb_add_user($settings);
     } else if ($bot['profile_image'] != $profile_image || $bot['first_name'] != $name) {
@@ -1037,10 +1062,12 @@ function sb_is_agent_typing($conversation_id) {
 
 function sb_set_typing($user_id = false, $conversation_id = false, $source = false) {
     if ($source && isset($source[0])) {
-        if ($source[0] == 'fb')
+        if ($source[0] == 'fb') {
             return sb_messenger_set_typing($source[1], $source[2]);
-        if ($source[0] == 'tw')
+        }
+        if ($source[0] == 'tw') {
             return sb_twitter_set_typing($source[1]);
+        }
         return false;
     } else {
         return sb_pusher_active() ? sb_pusher_trigger('private-user-' . $user_id, 'client-typing') : sb_db_query('UPDATE sb_users SET typing = ' . sb_db_escape($conversation_id, true) . ' WHERE id = ' . sb_db_escape($user_id, true));
@@ -1098,6 +1125,28 @@ function sb_ip_info($fields) {
         }
     }
     return false;
+}
+function sb_users_get_fields() {
+    $additional_fields = sb_get_setting('user-additional-fields', []);
+    $fields = [
+        ['name' => 'Address', 'id' => 'address'],
+        ['name' => 'City', 'id' => 'city'],
+        ['name' => 'Country', 'id' => 'country'],
+        ['name' => 'Postal code', 'id' => 'postal_code'],
+        ['name' => 'State', 'id' => 'state'],
+        ['name' => 'Phone', 'id' => 'phone'],
+        ['name' => 'Language', 'id' => 'language'],
+        ['name' => 'Birthdate', 'id' => 'birthdate'],
+        ['name' => 'Company', 'id' => 'company'],
+        ['name' => 'Website', 'id' => 'website']
+    ];
+    for ($i = 0; $i < count($additional_fields); $i++) {
+        $value = $additional_fields[$i];
+        if ($value['extra-field-name']) {
+            array_push($fields, ['id' => $value['extra-field-slug'], 'name' => $value['extra-field-name']]);
+        }
+    }
+    return $fields;
 }
 
 /*

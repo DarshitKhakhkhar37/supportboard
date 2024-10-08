@@ -10,22 +10,26 @@
  *
  */
 
+if (defined('SB_CROSS_DOMAIN') && SB_CROSS_DOMAIN) {
+    header('Access-Control-Allow-Origin: *');
+}
 require_once('functions.php');
-
+sb_cloud_load();
 $query_category_id = sb_isset($_GET, 'category');
 $query_article_id = sb_isset($_GET, 'article_id');
 $query_search = sb_isset($_GET, 'search');
+$language = sb_isset($_GET, 'lang', sb_get_user_language());
 $code = '<div class="' . ($query_category_id ? 'sb-subcategories' : ($query_search ? 'sb-articles-search' : 'sb-grid sb-grid-3')) . '">';
 $code_script = '';
-$language = sb_get_user_language();
 $css = 'sb-articles-parent-categories-cnt';
 $articles_page_url = trim(sb_get_setting('articles-page-url'));
 $articles_page_url_slash = $articles_page_url . (substr($articles_page_url, -1) == '/' ? '' : '/');
 $url_rewrite = $articles_page_url && sb_get_setting('articles-url-rewrite');
-$code_breadcrumbs = $articles_page_url ? '<div class="sb-breadcrumbs"><a href="' . $articles_page_url . '">' . sb_('All categories') . '</a>' : '';
+$code_breadcrumbs = $articles_page_url ? '<div class="sb-breadcrumbs"><a href="' . $articles_page_url . '">' . sb_t('All categories', $language) . '</a>' : '';
 if ($query_category_id) {
     $category = sb_get_article_category($query_category_id);
     if ($category) {
+        $category = sb_get_article_category_language($category, $language, $query_category_id);
         $css = 'sb-articles-category-cnt';
         $image = sb_isset($category, 'image');
         if ($code_breadcrumbs) {
@@ -59,7 +63,7 @@ if ($query_category_id) {
             $article_categories = [sb_isset($article, 'parent_category'), sb_isset($article, 'category')];
             for ($i = 0; $i < 2; $i++) {
                 if ($article_categories[$i]) {
-                    $category = sb_get_article_category($article_categories[$i]);
+                    $category = sb_get_article_category_language(sb_get_article_category($article_categories[$i]), $language, $article_categories[$i]);
                     $code_breadcrumbs .= '<i class="sb-icon-arrow-right"></i><a href="' . ($url_rewrite ? $articles_page_url_slash . 'category/' . $article_categories[$i] : $articles_page_url . '?category=' . $article_categories[$i]) . '">' . $category['title'] . '</a>';
                 }
             }
@@ -68,11 +72,11 @@ if ($query_category_id) {
         $code = $code_breadcrumbs . '<div data-id="' . $article['id'] . '" class="sb-article"><div class="sb-title">' . $article['title'] . '</div>';
         $code .= '<div class="sb-content">' . nl2br($article['content']) . '</div>';
         if (!empty($article['link'])) {
-            $code .= '<a href="' . $article['link'] . '" target="_blank" class="sb-btn-text"><i class="sb-icon-plane"></i>' . sb_('Read more') . '</a>';
+            $code .= '<a href="' . $article['link'] . '" target="_blank" class="sb-btn-text"><i class="sb-icon-plane"></i>' . sb_t('Read more', $language) . '</a>';
         }
-        $code .= '<div class="sb-rating sb-rating-ext"><span>' . sb_('Rate and review') . '</span><div>';
-        $code .= '<i data-rating="positive" class="sb-submit sb-icon-like"><span>' . sb_('Helpful') . '</span></i>';
-        $code .= '<i data-rating="negative" class="sb-submit sb-icon-dislike"><span>' . sb_('Not helpful') . '</span></i>';
+        $code .= '<div class="sb-rating sb-rating-ext"><span>' . sb_t('Rate and review', $language) . '</span><div>';
+        $code .= '<i data-rating="positive" class="sb-submit sb-icon-like"><span>' . sb_t('Helpful', $language) . '</span></i>';
+        $code .= '<i data-rating="negative" class="sb-submit sb-icon-dislike"><span>' . sb_t('Not helpful', $language) . '</span></i>';
         $code .= '</div></div></div>';
         $code_script = 'let user_rating = SBF.storage(\'article-rating-' . $query_article_id . '\'); if (user_rating) $(\'.sb-article\').attr(\'data-user-rating\', user_rating); $(\'.sb-article\').on(\'click\', \'.sb-rating-ext [data-rating]\', function (e) { SBChat.articleRatingOnClick(this); e.preventDefault(); return false; });';
     }
@@ -80,35 +84,64 @@ if ($query_category_id) {
     $css = 'sb-article-search-cnt';
     $articles = sb_search_articles($query_search, $language);
     $count = count($articles);
-    $code .= '<h2 class="sb-articles-search-title">' . sb_('Search results for:') . ' <span>' . $query_search . '</span></h2><div class="sb-search-results">';
+    $code .= '<h2 class="sb-articles-search-title">' . sb_t('Search results for:', $language) . ' <span>' . $query_search . '</span></h2><div class="sb-search-results">';
     for ($i = 0; $i < $count; $i++) {
         $code .= '<a href="' . ($url_rewrite ? $articles_page_url_slash . sb_isset($articles[$i], 'slug', $articles[$i]['id']) : $articles_page_url . '?article_id=' . $articles[$i]['id']) . '"><h3>' . $articles[$i]['title'] . '</h3><p>' . $articles[$i]['content'] . '</p></a>';
     }
     if (!$count) {
-        $code .= '<p>' . sb_('No results found.') . '</p>';
+        $code .= '<p>' . sb_t('No results found.', $language) . '</p>';
     }
     $code .= '</div>';
 } else {
     $categories = sb_get_articles_categories('parent');
-    for ($i = 0; $i < count($categories); $i++) {
-        $category = $categories[$i];
-        $image = sb_isset($category, 'image');
-        $title = sb_isset($category, 'title');
-        $description = sb_isset($category, 'description');
-        if ($language) {
-            $translations = sb_isset(sb_isset($category, 'languages', []), $language);
-            if ($translations) {
-                $title = sb_isset($translations, 'title', $title);
-                $description = sb_isset($translations, 'description', $description);
+    $count = count($categories);
+    if ($count) {
+        for ($i = 0; $i < count($categories); $i++) {
+            $category = $categories[$i];
+            $image = sb_isset($category, 'image');
+            $title = sb_isset($category, 'title');
+            $description = sb_isset($category, 'description');
+            if ($language) {
+                $translations = sb_isset(sb_isset($category, 'languages', []), $language);
+                if ($translations) {
+                    $title = sb_isset($translations, 'title', $title);
+                    $description = sb_isset($translations, 'description', $description);
+                }
             }
+            $code .= '<a href="' . ($url_rewrite ? $articles_page_url_slash . 'category/' . $category['id'] : $articles_page_url . '?category=' . $category['id']) . '">' . ($image ? '<img src="' . $image . '" />' : '') . '<h2>' . $title . '</h2><p>' . $description . '</p></a>';
         }
-        $code .= '<a href="' . ($url_rewrite ? $articles_page_url_slash . 'category/' . $category['id'] : $articles_page_url . '?category=' . $category['id']) . '">' . ($image ? '<img src="' . $image . '" />' : '') . '<h2>' . $title . '</h2><p>' . $description . '</p></a>';
+    } else {
+        $code .= '<p>' . sb_t('No results found.', $language) . '</p>';
     }
 }
 if (sb_get_setting('rtl') || in_array(sb_get_user_language(), ['ar', 'he', 'ku', 'fa', 'ur'])) {
     $css .= ' sb-rtl';
 }
 $code .= '</div>';
+
+function sb_get_article_category_language($category, $language, $category_id) {
+    if (isset($category['languages'][$language])) {
+        return $category['languages'][$language];
+    }
+    if (sb_get_multi_setting('google', 'google-multilingual-translation')) {
+        $translations = [$category['title']];
+        if (isset($category['description'])) {
+            array_push($translations, $category['description']);
+        }
+        $translations = sb_google_translate($translations, $language);
+        $category['title'] = $translations[0][0];
+        $category['description'] = sb_isset($translations[0], 1, '');
+        $articles_categories = sb_get_articles_categories();
+        for ($i = 0; $i < count($articles_categories); $i++) {
+            if ($articles_categories[$i]['id'] == $category_id) {
+                $articles_categories[$i]['languages'][$language] = $category;
+                sb_save_articles_categories($articles_categories);
+            }
+        }
+    }
+    return $category;
+}
+
 ?>
 
 <div class="sb-articles-page <?php echo $css ?>">

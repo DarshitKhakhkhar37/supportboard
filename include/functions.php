@@ -10,7 +10,7 @@ use Swoole\Http\Response;
  *
  */
 
-define('SB_VERSION', '3.7.3');
+define('SB_VERSION', '3.7.5');
 
 if (!defined('SB_PATH')) {
     $path = dirname(__DIR__, 1);
@@ -39,8 +39,8 @@ const SELECT_FROM_USERS = 'SELECT id, first_name, last_name, email, profile_imag
 class SBError {
     public $error;
 
-    function __construct($error_code, $function = '', $message = '') {
-        $this->error = ['message' => $message, 'function' => $function, 'code' => $error_code];
+    function __construct($error_code, $function = '', $message = '', $response = '') {
+        $this->error = ['message' => $message, 'function' => $function, 'code' => $error_code, 'response' => $response];
     }
 
     public function __toString() {
@@ -53,6 +53,10 @@ class SBError {
 
     function code() {
         return $this->error['code'];
+    }
+
+    function response() {
+        return $this->error['response'];
     }
 
     function function_name() {
@@ -76,7 +80,7 @@ class SBValidationError {
     }
 }
 
-$sb_apps = ['dialogflow', 'slack', 'wordpress', 'tickets', 'woocommerce', 'ump', 'perfex', 'whmcs', 'aecommerce', 'messenger', 'whatsapp', 'armember', 'viber', 'telegram', 'line', 'wechat', 'twitter', 'zendesk', 'gbm', 'martfury', 'opencart'];
+$sb_apps = ['dialogflow', 'slack', 'wordpress', 'tickets', 'woocommerce', 'ump', 'perfex', 'whmcs', 'aecommerce', 'messenger', 'whatsapp', 'armember', 'viber', 'telegram', 'line', 'wechat', 'zalo', 'twitter', 'zendesk', 'martfury', 'opencart'];
 for ($i = 0; $i < count($sb_apps); $i++) {
     $file = SB_PATH . '/apps/' . $sb_apps[$i] . '/functions.php';
     if (file_exists($file)) {
@@ -115,9 +119,17 @@ function sb_db_connect() {
     if ($certificate_path) {
         $SB_CONNECTION->ssl_set(SB_PATH . $certificate_path . SB_DB_CERTIFICATE_CLIENT_KEY, SB_PATH . $certificate_path . SB_DB_CERTIFICATE_CLIENT, SB_PATH . $certificate_path . SB_DB_CERTIFICATE_CA, null, null);
     }
-    if (!$SB_CONNECTION->real_connect(SB_DB_HOST, SB_DB_USER, SB_DB_PASSWORD, SB_DB_NAME, $socket ? null : $port, $socket, $certificate_path ? MYSQLI_CLIENT_SSL : 0)) {
-        echo 'Connection error. Visit the admin area for more details or open the config.php file and check the database information. Message: ' . $SB_CONNECTION->connect_error . '.';
-        return false;
+    try {
+        if (!$SB_CONNECTION->real_connect(SB_DB_HOST, SB_DB_USER, SB_DB_PASSWORD, SB_DB_NAME, $socket ? null : $port, $socket, $certificate_path ? MYSQLI_CLIENT_SSL : 0)) {
+            echo 'Connection error. Visit the admin area for more details or open the config.php file and check the database information. Message: ' . $SB_CONNECTION->connect_error . '.';
+            return false;
+        }
+    } catch (Exception $exception) {
+        if (isset($_COOKIE['sb-cloud'])) {
+            setcookie('sb-cloud', '', 0, '/');
+            setcookie('sb-login', '', 0, '/');
+            die('<script>localStorage.removeItem("support-board"); location.reload();</script>');
+        }
     }
     sb_db_init_settings();
     return true;
@@ -193,9 +205,12 @@ function sb_db_escape($value, $numeric = -1) {
 }
 
 function sb_db_json_escape($array) {
+    if (empty($array)) {
+        return '';
+    }
     global $SB_CONNECTION;
     sb_db_connect();
-    $value = str_replace(['"false"', '"true"'], ['false', 'true'], json_encode($array, JSON_INVALID_UTF8_IGNORE, JSON_UNESCAPED_UNICODE));
+    $value = str_replace(['"false"', '"true"'], ['false', 'true'], json_encode($array, JSON_INVALID_UTF8_IGNORE | JSON_UNESCAPED_UNICODE));
     $value = sb_sanatize_string($value);
     return $SB_CONNECTION ? $SB_CONNECTION->real_escape_string($value) : $value;
 }
@@ -223,7 +238,7 @@ function sb_db_check_connection($name = false, $user = false, $password = false,
         return 'installation';
     }
     try {
-        set_error_handler(function () { }, E_ALL);
+        set_error_handler(function () {}, E_ALL);
         $SB_CONNECTION = new mysqli();
         $certificate_path = sb_defined('SB_DB_CERTIFICATE_PATH');
         $socket = sb_defined('SB_DB_SOCKET', null);
@@ -526,7 +541,7 @@ function sb_get_translations($is_user = false, $language_code = false) {
         return [];
     }
     $path = $is_user ? '/uploads' : '/resources';
-    $language_codes = json_decode(file_get_contents(SB_PATH . '/resources/languages/language-codes.json'), true);
+    $language_codes = sb_get_json_resource('languages/language-codes.json');
     $paths = ['front', 'admin', 'admin/js', 'admin/settings'];
     if (sb_is_cloud()) {
         $cloud = sb_cloud_account();
@@ -626,7 +641,7 @@ function sb_get_user_language($user_id = false) {
     $language = false;
     if ($user_id && is_numeric($user_id)) {
         $language = sb_get_user_extra($user_id, 'language');
-        if (!$language) {
+        if (!$language && sb_get_setting('front-auto-translations')) {
             $language = sb_get_user_extra($user_id, 'browser_language');
         }
     }
@@ -865,7 +880,7 @@ function sb_updates_available() {
 }
 
 function sb_get_installed_apps_version() {
-    return ['dialogflow' => sb_defined('SB_DIALOGFLOW'), 'slack' => sb_defined('SB_SLACK'), 'tickets' => sb_defined('SB_TICKETS'), 'woocommerce' => sb_defined('SB_WOOCOMMERCE'), 'ump' => sb_defined('SB_UMP'), 'perfex' => sb_defined('SB_PERFEX'), 'whmcs' => sb_defined('SB_WHMCS'), 'aecommerce' => sb_defined('SB_AECOMMERCE'), 'messenger' => sb_defined('SB_MESSENGER'), 'whatsapp' => sb_defined('SB_WHATSAPP'), 'armember' => sb_defined('SB_ARMEMBER'), 'telegram' => sb_defined('SB_TELEGRAM'), 'viber' => sb_defined('SB_VIBER'), 'line' => sb_defined('SB_LINE'), 'wechat' => sb_defined('SB_WECHAT'), 'twitter' => sb_defined('SB_TWITTER'), 'zendesk' => sb_defined('SB_ZENDESK'), 'gbm' => sb_defined('SB_GBM'), 'martfury' => sb_defined('SB_MARTFURY'), 'opencart' => sb_defined('SB_OPENCART')];
+    return ['dialogflow' => sb_defined('SB_DIALOGFLOW'), 'slack' => sb_defined('SB_SLACK'), 'tickets' => sb_defined('SB_TICKETS'), 'woocommerce' => sb_defined('SB_WOOCOMMERCE'), 'ump' => sb_defined('SB_UMP'), 'perfex' => sb_defined('SB_PERFEX'), 'whmcs' => sb_defined('SB_WHMCS'), 'aecommerce' => sb_defined('SB_AECOMMERCE'), 'messenger' => sb_defined('SB_MESSENGER'), 'whatsapp' => sb_defined('SB_WHATSAPP'), 'armember' => sb_defined('SB_ARMEMBER'), 'telegram' => sb_defined('SB_TELEGRAM'), 'viber' => sb_defined('SB_VIBER'), 'line' => sb_defined('SB_LINE'), 'wechat' => sb_defined('SB_WECHAT'), 'zalo' => sb_defined('SB_ZALO'), 'twitter' => sb_defined('SB_TWITTER'), 'zendesk' => sb_defined('SB_ZENDESK'), 'martfury' => sb_defined('SB_MARTFURY'), 'opencart' => sb_defined('SB_OPENCART')];
 }
 
 
@@ -956,7 +971,6 @@ function sb_dir_name() {
     return substr(SB_URL, strrpos(SB_URL, '/') + 1);
 }
 
-
 /*
  * ----------------------------------------------------------
  * PUSHER AND Push notifications
@@ -1010,6 +1024,9 @@ function sb_push_notification($title = '', $message = '', $icon = '', $interest 
     } else if ($interest == 'all-agents') {
         $interest == 'agents';
     }
+    if (empty($interest)) {
+        return false;
+    }
     if (empty($icon) || strpos($icon, 'user.svg')) {
         $icon = sb_is_cloud() ? SB_CLOUD_BRAND_ICON_PNG : sb_get_setting('notifications-icon', SB_URL . '/media/icon.png');
     }
@@ -1027,9 +1044,6 @@ function sb_push_notification($title = '', $message = '', $icon = '', $interest 
     $title = str_replace('"', '', $title);
     $message = str_replace('"', '', sb_clear_text_formatting(trim(preg_replace('/\s+/', ' ', $message))));
     $response = false;
-    if (empty($interest)) {
-        return false;
-    }
     $query_data = ['conversation_id' => $conversation_id, 'user_id' => $user_id, 'image' => $image ? $image : '', 'badge' => SB_URL . '/media/badge.png'];
     if ($is_pusher) {
         $query = ',"web":{"notification":{"title":"' . $title . '","body":"' . $message . '","icon":"' . $icon . '"' . ($link ? ',"deep_link":"' . $link . '"' : '') . ',"hide_notification_if_site_has_focus":true}, "data": ' . json_encode($query_data) . '}}';
@@ -1242,6 +1256,7 @@ function sb_onesignal_curl($url_part, $post_fields = []) {
  * 26. Amazon S3
  * 27. Return the correct UTC timestamp
  * 28. Support Board error reporting
+ * 29. Return an array from a JSON string of the resources folder
  *
  */
 
@@ -1284,7 +1299,7 @@ function sb_string_slug($string, $action = 'slug') {
     $string = trim($string);
     if ($action == 'slug') {
         $string = strtolower(str_replace([' ', ' '], '-', $string)); // Do not delete double space (they are 2 different chars)
-        return preg_replace('/[^A-Za-z0-9.\-]/', '', sb_sanatize_string($string));
+        return preg_replace('/[^A-Za-z0-9.\-\_]/', '', sb_sanatize_string($string));
     } else if ($action == 'string') {
         return ucfirst(strtolower(str_replace(['-', '_'], ' ', $string)));
     }
@@ -1293,8 +1308,10 @@ function sb_string_slug($string, $action = 'slug') {
 
 function sb_curl($url, $post_fields = '', $header = [], $method = 'POST', $timeout = false) {
     $ch = curl_init($url);
+    $post_value = $post_fields ? (is_string($post_fields) ? $post_fields : (in_array('Content-Type: multipart/form-data', $header) ? $post_fields : http_build_query($post_fields))) : false;
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_USERAGENT, 'SB');
     switch ($method) {
         case 'DELETE':
@@ -1302,7 +1319,7 @@ function sb_curl($url, $post_fields = '', $header = [], $method = 'POST', $timeo
         case 'PATCH':
         case 'POST':
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, is_string($post_fields) ? $post_fields : (in_array('Content-Type: multipart/form-data', $header) ? $post_fields : http_build_query($post_fields)));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_value);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : 7);
             if ($method != 'POST') {
@@ -1314,6 +1331,9 @@ function sb_curl($url, $post_fields = '', $header = [], $method = 'POST', $timeo
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : 70);
             curl_setopt($ch, CURLOPT_HEADER, false);
+            if ($post_value) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $post_value);
+            }
             break;
         case 'DOWNLOAD':
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -1467,10 +1487,10 @@ function sb_file_delete($url_or_path) {
 }
 
 function sb_debug($value) {
-    $value = is_string($value) ? $value : json_encode($value, JSON_INVALID_UTF8_IGNORE, JSON_UNESCAPED_UNICODE);
+    $value = is_string($value) ? $value : json_encode($value, JSON_INVALID_UTF8_IGNORE | JSON_UNESCAPED_UNICODE);
     $path = __DIR__ . '/debug.txt';
     if (file_exists($path)) {
-        $value = file_get_contents($path) . PHP_EOL . $value;
+        $value = file_get_contents($path) . PHP_EOL . PHP_EOL . $value;
     }
     sb_file($path, $value);
 }
@@ -1479,6 +1499,8 @@ function sb_json_array($json, $default = []) {
     if (is_string($json)) {
         $json = json_decode($json, true);
         return $json === false || $json === null ? $default : $json;
+    } else if (is_bool($json)) {
+        return [];
     } else {
         return $json;
     }
@@ -1662,8 +1684,11 @@ function sb_on_close() {
     sb_set_agent_active_conversation(0);
 }
 
-function sb_chatbot_active($check_dialogflow = true, $check_open_ai = true) {
+function sb_chatbot_active($check_dialogflow = true, $check_open_ai = true, $source = false) {
     if (defined('SB_DIALOGFLOW')) {
+        if ($source && sb_get_setting(($source == 'ig' ? 'fb' : $source) . '-disable-chatbot')) {
+            return false;
+        }
         if ($check_dialogflow && $check_open_ai) {
             return sb_get_setting('dialogflow-active') || sb_get_multi_setting('google', 'dialogflow-active') || sb_get_multi_setting('open-ai', 'open-ai-active'); // Deprecated: sb_get_setting('dialogflow-active')
         }
@@ -1759,7 +1784,7 @@ function sb_cron_jobs() {
         sb_aecommerce_clean_carts();
     }
     if (sb_chatbot_active(false, true)) {
-        sb_open_ai_embeddings_conversations();
+        sb_open_ai_conversations_training();
     }
     sb_clean_data();
     sb_db_query('DELETE FROM sb_settings WHERE name="cron-functions"');
@@ -1840,17 +1865,21 @@ function sb_get_timestamp($date_string) {
 }
 
 function sb_error($error_code, $function_name, $message = '', $force = false) {
-    $message = 'Support Board [' . $function_name . '][' . $error_code . ']: ' . (is_string($message) ? $message : json_encode($message));
+    $message_2 = 'Support Board [' . $function_name . '][' . $error_code . ']: ' . (is_string($message) ? $message : json_encode($message));
     if ($force || sb_is_debug()) {
-        sb_debug($message);
-        trigger_error($message);
-        die($message);
+        sb_debug($message_2);
+        trigger_error($message_2);
+        die($message_2);
     }
-    return new SBError($error_code, $function_name, $message);
+    return new SBError($error_code, $function_name, $message_2, $message);
 }
 
 function sb_is_debug() {
     return isset($_GET['debug']) || sb_isset($_POST, 'debug') || strpos(sb_isset($_SERVER, 'HTTP_REFERER'), 'debug');
+}
+
+function sb_get_json_resource($path_part) {
+    return json_decode(file_get_contents(SB_PATH . '/resources/' . $path_part), true);
 }
 
 /*
@@ -1985,11 +2014,6 @@ function sb_reports($report_name, $date_start = false, $date_end = false, $timez
             $chart_type = 'pie';
             $label_type = 4;
             break;
-        case 'subscribe':
-            $query = 'SELECT creation_time, value FROM sb_reports A WHERE name = "subscribe"';
-            $title = 'Subscribe emails count';
-            $description = 'Number of users who registered their email via subscribe message.';
-            break;
         case 'follow-up':
             $query = 'SELECT creation_time, value FROM sb_reports A WHERE name = "follow-up"';
             $title = 'Follow-up emails count';
@@ -2048,14 +2072,13 @@ function sb_reports($report_name, $date_start = false, $date_end = false, $timez
         case 'message-automations':
         case 'registrations':
         case 'follow-up':
-        case 'subscribe':
         case 'users':
         case 'leads':
         case 'visitors':
         case 'conversations':
         case 'missed-conversations':
             $rows = sb_db_get($query . ($date ? ' AND ' . $date : '') . ' ORDER BY STR_TO_DATE(A.creation_time, "%Y-%m-%d %T")', false);
-            $sum = !in_array($report_name, ['visitors', 'subscribe', 'follow-up', 'registrations', 'message-automations', 'email-automations', 'sms-automations']);
+            $sum = !in_array($report_name, ['visitors', 'follow-up', 'registrations', 'message-automations', 'email-automations', 'sms-automations']);
             for ($i = 0; $i < count($rows); $i++) {
                 $date_row = date('d/m/Y', strtotime($rows[$i]['creation_time']));
                 $data[$date_row] = $sum ? [empty($data[$date_row]) ? 1 : $data[$date_row][0] + 1] : [$rows[$i]['value']];
@@ -2096,7 +2119,7 @@ function sb_reports($report_name, $date_start = false, $date_end = false, $timez
                     }
                 }
                 foreach ($data as $key => $value) {
-                    $data[$key] = [intval($value / $agents_counts[$key]), gmdate('H:i:s', $value / $agents_counts[$key])];
+                    $data[$key] = [intval($value / $agents_counts[$key]), gmdate('H:i:s', intval($value / $agents_counts[$key]))];
                 }
             } else {
                 for ($i = 0; $i < count($times); $i++) {
@@ -2251,8 +2274,8 @@ function sb_reports($report_name, $date_start = false, $date_end = false, $timez
             } else if ($is_os) {
                 $field = 'os';
             }
-            $language_codes = json_decode(file_get_contents(SB_PATH . '/resources/languages/language-codes.json'), true);
-            $country_codes = $is_country ? json_decode(file_get_contents(SB_PATH . '/resources/json/countries.json'), true) : false;
+            $language_codes = sb_get_json_resource('languages/language-codes.json');
+            $country_codes = $is_country ? sb_get_json_resource('json/countries.json') : false;
             $rows = sb_db_get('SELECT value FROM sb_users_data WHERE slug = "' . $field . '" AND user_id IN (SELECT id FROM sb_users A WHERE (user_type = "lead" OR user_type = "user")' . ($date ? ' AND ' . $date : '') . ')', false);
             $total = 0;
             $flags = [];
@@ -2364,7 +2387,7 @@ function sb_reports($report_name, $date_start = false, $date_end = false, $timez
         }
         if ($average && $period_count > 62) {
             foreach ($data_final as $key => $value) {
-                $data_final[$key] = [intval($value[0] / $counts[$key]), gmdate('H:i:s', $value[0] / $counts[$key])];
+                $data_final[$key] = [intval($value[0] / $counts[$key]), gmdate('H:i:s', intval($value[0] / $counts[$key]))];
             }
         }
     } else {
@@ -2522,32 +2545,61 @@ function sb_automations_run_all() {
     return $response;
 }
 
-function sb_automations_validate($automation) {
-    $conditions = sb_isset($automation, 'conditions', []);
+function sb_automations_validate($automation, $is_flow = false) {
+    $conditions = $is_flow ? $automation : sb_isset($automation, 'conditions', []);
+    if (empty($conditions)) {
+        return true;
+    }
     $invalid_conditions = [];
     $repeat_id = false;
     $valid = false;
     $active_user = sb_get_active_user();
     $active_user_id = sb_isset($active_user, 'id');
+    $custom_fields = array_column(sb_get_setting('user-additional-fields', []), 'extra-field-slug');
     for ($i = 0; $i < count($conditions); $i++) {
         $valid = false;
         $criteria = $conditions[$i][1];
-        switch ($conditions[$i][0]) {
+        $type = $conditions[$i][0];
+        switch ($type) {
+            case 'birthdate':
+                if ($active_user) {
+                    $user_value = date('d/m', strtotime(sb_get_user_extra($active_user_id, 'birthdate')));
+                    if (($criteria == 'is-set' && !empty($user_value)) || ($criteria == 'is-not-set' && empty($user_value))) {
+                        $valid = true;
+                    } else {
+                        $dates = str_replace(' ', '', $conditions[$i][2]);
+                        if ($criteria == 'is-between') {
+                            $dates = explode('-', $dates);
+                            if (count($dates) == 2) {
+                                $dates = [strtotime(str_replace('/', '-', $dates[0]) . '-1900'), strtotime(str_replace('/', '-', $dates[1]) . '-1900')];
+                                $user_value = strtotime(str_replace('/', '-', $user_value) . '-1900');
+                                $valid = ($user_value >= $dates[0] && $user_value <= $dates[1]);
+                            }
+                        } else if ($criteria == 'is-exactly') {
+                            $valid = $user_value == $dates;
+                        }
+                    }
+                } else {
+                    $valid = true;
+                    array_push($invalid_conditions, $conditions[$i]);
+                }
+                break;
+            case 'creation_time':
             case 'datetime':
-                $now = time();
+                $user_value = $type == 'datetime' ? time() : strtotime(sb_get_user(sb_get_active_user_ID())[$type]);
                 $offset = intval(sb_get_setting('timetable-utc', 0)) * 3600;
                 if ($criteria == 'is-between') {
-                    $dates = explode(' - ', $conditions[$i][2]);
+                    $dates = explode('-', str_replace(' ', '', $conditions[$i][2]));
                     if (count($dates) == 2) {
                         $unix = date_timestamp_get(DateTime::createFromFormat('d/m/Y H:i', $dates[0] . (strpos($dates[0], ':') ? '' : ' 00:00'))) + (strpos($dates[0], ':') ? $offset : 0);
                         $unix_end = date_timestamp_get(DateTime::createFromFormat('d/m/Y H:i', $dates[1] . (strpos($dates[1], ':') ? '' : ' 23:59'))) + (strpos($dates[1], ':') ? $offset : 0);
-                        $valid = ($now >= $unix) && ($now <= $unix_end);
+                        $valid = ($user_value >= $unix) && ($user_value <= $unix_end);
                         $continue = true;
                     }
-                } else if ($criteria == 'is-exactly') {
+                } else {
                     $is_time = strpos($conditions[$i][2], ':');
                     $unix = date_timestamp_get(DateTime::createFromFormat('d/m/Y H:i', $conditions[$i][2] . ($is_time ? '' : ' 00:00'))) + $offset;
-                    $valid = $now == $unix || (!$is_time && $now > $unix && $now < $unix + 86400);
+                    $valid = $user_value == $unix || (!$is_time && $user_value > $unix && $user_value < $unix + 86400);
                 }
                 if (!$valid) {
                     for ($j = 0; $j < count($conditions); $j++) {
@@ -2561,7 +2613,7 @@ function sb_automations_validate($automation) {
                                     $hhmm_end = strtotime(date('Y-m-d ' . explode(' ', $dates[1])[1])) + $offset;
                                 }
                                 if ($condition == 'every-day') {
-                                    $valid = $hhmm ? ($now >= $hhmm) && ($now <= $hhmm_end) : true;
+                                    $valid = $hhmm ? ($user_value >= $hhmm) && ($user_value <= $hhmm_end) : true;
                                     $repeat_id = $valid ? date('z') : false;
                                 } else {
                                     $letter = $condition == 'every-week' ? 'w' : ($condition == 'every-month' ? 'd' : 'z');
@@ -2575,7 +2627,7 @@ function sb_automations_validate($automation) {
                                     }
                                     $valid = ($letter_value_now >= $letter_value_unix) && (date($letter, strtotime('+' . ($letter_value_unix_end - $letter_value_unix - (($letter_value_now >= $letter_value_unix) && ($letter_value_now <= $letter_value_unix_end) ? $letter_value_now - $letter_value_unix : 0)) . ' days')) <= $letter_value_unix_end);
                                     if ($valid && $hhmm) {
-                                        $valid = ($now >= $hhmm) && ($now <= $hhmm_end);
+                                        $valid = ($user_value >= $hhmm) && ($user_value <= $hhmm_end);
                                     }
                                     $repeat_id = $valid ? $letter_value_now : false;
                                 }
@@ -2594,18 +2646,22 @@ function sb_automations_validate($automation) {
                     }
                 }
                 break;
-            case 'include_urls':
-            case 'exclude_urls':
-                $url = str_replace(['https://', 'http://', 'www.'], '', sb_isset($_POST, 'current_url', $_SERVER['HTTP_REFERER']));
-                $checks = explode(',', $conditions[$i][2]);
-                $include = $conditions[$i][0] == 'include_urls';
-                if (!$include)
+            case 'include_urls': // Deprecated: all this block
+            case 'exclude_urls': // Deprecated: all this block
+                $url = strtolower(str_replace(['https://', 'http://', 'www.'], '', sb_isset($_POST, 'current_url', $_SERVER['HTTP_REFERER'])));
+                $checks = explode(',', strtolower(str_replace(['https://', 'http://', 'www.', ' '], '', $conditions[$i][2])));
+                if (($criteria == 'is-set' && !empty($checks)) || ($criteria == 'is-not-set' && empty($checks))) {
                     $valid = true;
-                for ($j = 0; $j < count($checks); $j++) {
-                    $checks[$j] = trim(str_replace(['https://', 'http://', 'www.'], '', $checks[$j]));
-                    if (($criteria == 'contains' && strpos($url . '/', $checks[$j]) !== false) || ($criteria == 'does-not-contain' && strpos($url, $checks[$j]) === false) || ($criteria == 'is-exactly' && $checks[$j] == $url) || ($criteria == 'is-not' && $checks[$j] != $url)) {
-                        $valid = $include;
-                        break;
+                } else {
+                    $include = $criteria != 'exclude_urls';
+                    if (!$include) {
+                        $valid = true;
+                    }
+                    for ($j = 0; $j < count($checks); $j++) {
+                        if (($criteria == 'contains' && strpos($url . '/', $checks[$j]) !== false) || ($criteria == 'does-not-contain' && strpos($url, $checks[$j]) === false) || ($criteria == 'is-exactly' && $checks[$j] == $url) || ($criteria == 'is-not' && $checks[$j] != $url)) {
+                            $valid = $include;
+                            break;
+                        }
                     }
                 }
                 break;
@@ -2618,11 +2674,13 @@ function sb_automations_validate($automation) {
                     array_push($invalid_conditions, $conditions[$i]);
                 }
                 break;
+            case 'postal_code':
+            case 'company':
             case 'cities':
             case 'languages':
             case 'countries':
                 if ($active_user) {
-                    if ($conditions[$i][0] == 'languages') {
+                    if ($type == 'languages') {
                         $user_value = sb_get_user_extra($active_user_id, 'language');
                         if (!$user_value) {
                             $user_value = sb_get_user_extra($active_user_id, 'browser_language');
@@ -2630,14 +2688,14 @@ function sb_automations_validate($automation) {
                                 $user_value = sb_language_code($user_value);
                             }
                         }
-                    } else if ($conditions[$i][0] == 'cities') {
+                    } else if ($type == 'cities') {
                         $user_value = sb_get_user_extra($active_user_id, 'location');
                         if ($user_value) {
                             $user_value = substr($user_value, 0, strpos($user_value, ','));
                         } else {
                             $user_value = sb_get_user_extra($active_user_id, 'city');
                         }
-                    } else {
+                    } else if ($type == 'countries') {
                         $user_value = sb_get_user_extra($active_user_id, 'country_code');
                         if (!$user_value) {
                             $user_value = sb_get_user_extra($active_user_id, 'country');
@@ -2648,7 +2706,7 @@ function sb_automations_validate($automation) {
                                 }
                             }
                             if ($user_value) {
-                                $countries = json_decode(file_get_contents(SB_PATH . '/resources/json/countries.json'), true);
+                                $countries = sb_get_json_resource('json/countries.json');
                                 if (isset($countries[$user_value])) {
                                     $user_value = $countries[$user_value];
                                 } else if (strlen($user_value) > 2) {
@@ -2656,15 +2714,18 @@ function sb_automations_validate($automation) {
                                 }
                             }
                         }
+                    } else {
+                        $user_value = sb_get_user_extra($active_user_id, $type);
                     }
                     if ($user_value) {
                         $user_value = strtolower(trim($user_value));
-                        $condition_values = explode(',', $criteria);
-                        for ($j = 0; $j < count($condition_values); $j++) {
-                            if (strtolower(trim($condition_values[$j])) == $user_value) {
-                                $valid = true;
-                                break;
-                            }
+                        $values = explode(',', strtolower(str_replace(' ', '', $conditions[$i][2])));
+                        if ($criteria == 'is-included' && in_array($user_value, $values)) {
+                            $valid = true;
+                        } else if ($criteria == 'is-not-included' && !in_array($user_value, $values)) {
+                            $valid = true;
+                        } else {
+                            $valid = ($criteria == 'is-set' && !empty($user_value)) || ($criteria == 'is-not-set' && empty($user_value));
                         }
                     }
                 } else {
@@ -2687,21 +2748,48 @@ function sb_automations_validate($automation) {
             case 'repeat':
                 $valid = true;
                 break;
-            default:
+        }
+        if (in_array($type, $custom_fields) || in_array($type, ['url', 'website', 'email', 'phone'])) {
+            if ($active_user) {
+                $user_value = strtolower($type == 'email' ? $active_user['email'] : ($type == 'url' ? sb_isset($_POST, 'current_url', $_SERVER['HTTP_REFERER']) : sb_get_user_extra($active_user_id, $type)));
+                if ($type == 'url' || $type == 'website') {
+                    $conditions[$i][2] = str_replace(['https://', 'http://', 'www.'], '', $conditions[$i][2]);
+                    $user_value = str_replace(['https://', 'http://', 'www.'], '', $user_value);
+                }
+                $checks = explode(',', strtolower(str_replace(' ', '', $conditions[$i][2])));
+                if (($criteria == 'is-set' && !empty($checks)) || ($criteria == 'is-not-set' && empty($checks))) {
+                    $valid = true;
+                } else {
+                    $valid = $criteria != 'contains';
+                    for ($j = 0; $j < count($checks); $j++) {
+                        if (strpos($user_value, $checks[$j]) !== false) {
+                            $valid = $criteria == 'contains';
+                            break;
+                        }
+                    }
+                }
+            } else {
                 $valid = true;
                 array_push($invalid_conditions, $conditions[$i]);
-                break;
+            }
+        } else {
+            $valid = true;
+            array_push($invalid_conditions, $conditions[$i]);
         }
-        if (!$valid)
+        if (!$valid) {
             break;
+        }
+    }
+    if ($is_flow) {
+        return $valid;
     }
     if ($valid && !sb_automations_is_sent($active_user_id, $automation, $repeat_id)) {
 
         // Check user details conditions
         if ($automation['type'] == 'emails' && (!$active_user || empty($active_user['email']))) {
-            array_push($invalid_conditions, ['user_email']);
+            array_push($invalid_conditions, ['email']);
         } else if ($automation['type'] == 'sms' && !sb_get_user_extra($active_user_id, 'phone')) {
-            array_push($invalid_conditions, ['user_phone']);
+            array_push($invalid_conditions, ['phone']);
         }
 
         // Return the result
@@ -2798,7 +2886,7 @@ function sb_cloud_membership_validation($die = false) {
     require_once(SB_CLOUD_PATH . '/account/functions.php');
     $membership = membership_get_active();
     $expiration = DateTime::createFromFormat('d-m-y', $membership['expiration']);
-    return !$membership || !isset($membership['count']) || intval($membership['count']) > intval($membership['quota']) || (isset($membership['count_agents']) && isset($membership['quota_agents']) && intval($membership['count_agents']) > intval($membership['quota_agents'])) || ($membership['price'] != 0 && (!$expiration || time() > $expiration->getTimestamp())) ? ($die ? die('account-suspended') : '<script>document.location = "' . CLOUD_URL . '/account"</script>') : '<script>var SB_CLOUD_FREE = ' . (empty($membership['id']) || $membership['id'] == 'free' ? 'true' : 'false') . '</script>';
+    return !$membership || !isset($membership['count']) || intval($membership['count']) > intval($membership['quota']) || (isset($membership['count_agents']) && isset($membership['quota_agents']) && intval($membership['count_agents']) > intval($membership['quota_agents'])) || ($membership['price'] != 0 && (!$expiration || time() > $expiration->getTimestamp())) ? ($die || !sb_isset(account(), 'owner') ? die('account-suspended') : '<script>document.location = "' . CLOUD_URL . '/account"</script>') : '<script>var SB_CLOUD_FREE = ' . (empty($membership['id']) || $membership['id'] == 'free' ? 'true' : 'false') . '</script>';
 }
 
 function sb_cloud_account() {
@@ -2834,7 +2922,7 @@ function sb_cloud_load() {
                 require_once($path);
                 return true;
             }
-            return 'config-file-missing';
+            return 'config-file-not-found';
         } else
             return 'cloud-data-not-found';
     }
@@ -2850,7 +2938,7 @@ function sb_cloud_load_by_url() {
                 require_once($path);
                 sb_cloud_set_login($token);
             } else {
-                sb_error('config-file-not-found', 'sb_cloud_load_by_url', 'Config file not found: ' . $path, true);
+                sb_error('config-file-not-found', 'sb_cloud_load_by_url', 'Config file not found: ' . $path);
             }
             return $token;
         }

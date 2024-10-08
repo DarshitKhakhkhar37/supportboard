@@ -117,7 +117,7 @@ function sb_ajax_execute() {
         case 'get-user':
             return sb_json_response(sb_get_user($_POST['user_id'], sb_post('extra')));
         case 'get-users':
-            return sb_json_response(sb_get_users(sb_post('sorting', ['creation_time', 'DESC']), sb_post('user_types', []), sb_post('search', ''), sb_post('pagination'), sb_post('extra'), sb_post('users_id')));
+            return sb_json_response(sb_get_users(sb_post('sorting', ['creation_time', 'DESC']), sb_post('user_types', []), sb_post('search', ''), sb_post('pagination'), sb_post('extra'), sb_post('users_id'), sb_post('department'), sb_post('tag'), sb_post('source')));
         case 'get-new-users':
             return sb_json_response(sb_get_new_users($_POST['datetime']));
         case 'get-user-extra':
@@ -271,7 +271,7 @@ function sb_ajax_execute() {
         case 'save-article':
             return sb_json_response(sb_save_article($_POST['article']));
         case 'get-articles':
-            return sb_json_response(sb_get_articles(sb_post('id'), sb_post('count'), sb_post('full'), sb_post('categories'), sb_post('language')));
+            return sb_json_response(sb_get_articles(sb_post('id'), sb_post('count'), sb_post('full'), sb_post('categories'), sb_post('language'), sb_post('skip_language')));
         case 'get-articles-categories':
             return sb_json_response(sb_get_articles_categories(sb_post('category_type')));
         case 'save-articles-categories':
@@ -410,6 +410,8 @@ function sb_ajax_execute() {
             return sb_json_response(sb_update_note($_POST['conversation_id'], $_POST['user_id'], $_POST['note_id'], $_POST['message']));
         case 'delete-note':
             return sb_json_response(sb_delete_note($_POST['conversation_id'], $_POST['note_id']));
+        case 'messenger-unsubscribe':
+            return sb_json_response(sb_messenger_unsubscribe());
         case 'messenger-send-message':
             return sb_json_response(sb_messenger_send_message($_POST['psid'], $_POST['facebook_page_id'], sb_post('message', ''), sb_post('attachments', []), sb_post('metadata', []), sb_post('message_id')));
         case 'whatsapp-send-message':
@@ -428,12 +430,12 @@ function sb_ajax_execute() {
             return sb_json_response(sb_viber_send_message($_POST['viber_id'], sb_post('message', ''), sb_post('attachments', [])));
         case 'viber-synchronization':
             return sb_json_response(sb_viber_synchronization($_POST['token'], sb_post('cloud_token')));
+        case 'zalo-send-message':
+            return sb_json_response(sb_zalo_send_message($_POST['zalo_id'], sb_post('message', ''), sb_post('attachments', [])));
         case 'twitter-send-message':
             return sb_json_response(sb_twitter_send_message($_POST['twitter_id'], sb_post('message', ''), sb_post('attachments', [])));
         case 'twitter-subscribe':
             return sb_json_response(sb_twitter_subscribe(sb_post('cloud_token')));
-        case 'gbm-send-message':
-            return sb_json_response(sb_gbm_send_message($_POST['google_conversation_id'], sb_post('message', ''), sb_post('attachments', []), sb_post('token')));
         case 'line-send-message':
             return sb_json_response(sb_line_send_message($_POST['line_id'], sb_post('message', ''), sb_post('attachments', []), sb_post('conversation_id')));
         case 'wechat-send-message':
@@ -468,6 +470,8 @@ function sb_ajax_execute() {
             return sb_json_response(sb_google_translate($_POST['strings'], $_POST['language_code'], sb_post('token'), sb_post('message_ids'), sb_post('conversation_id')));
         case 'google-language-detection-update-user':
             return sb_json_response(sb_google_language_detection_update_user($_POST['string'], sb_post('user_id'), sb_post('token')));
+        case 'google-troubleshoot':
+            return sb_json_response(sb_google_troubleshoot());
         case 'export-settings':
             return sb_json_response(sb_export_settings());
         case 'import-settings':
@@ -496,25 +500,43 @@ function sb_ajax_execute() {
         case 'martfury-sync-sellers':
             return sb_json_response(sb_martfury_import_users($function == 'martfury-sync-sellers'));
         case 'open-ai-message':
-            return sb_json_response(sb_open_ai_message($_POST['message'], sb_post('max_tokens'), sb_post('model'), sb_post('conversation_id'), sb_post('extra'), sb_post('audio')));
+            return sb_json_response(sb_open_ai_message($_POST['message'], sb_post('max_tokens'), sb_post('model'), sb_post('conversation_id'), sb_post('extra'), sb_post('audio'), sb_post('attachments', [])));
         case 'open-ai-user-expressions':
             return sb_json_response(sb_open_ai_user_expressions($_POST['message']));
         case 'open-ai-user-expressions-intents':
             return sb_json_response(sb_open_ai_user_expressions_intents());
         case 'open-ai-smart-reply':
             return sb_json_response(sb_open_ai_smart_reply($_POST['message'], $_POST['conversation_id']));
-        case 'open-ai-get-embeddings':
-            return sb_json_response(sb_open_ai_embeddings_get($_POST['paragraphs'], sb_post('save_source')));
-        case 'open-ai-get-embeddings-delete':
-            return sb_json_response(sb_open_ai_embeddings_delete($_POST['sources']));
-        case 'open-ai-embeddings-articles':
-            return sb_json_response(sb_open_ai_embeddings_articles());
+        case 'open-ai-generate-embeddings':
+            return sb_json_response(sb_open_ai_embeddings_generate($_POST['paragraphs'], sb_post('save_source')));
+        case 'open-ai-file-training':
+            return sb_json_response(sb_open_ai_file_training($_POST['url']));
+        case 'open-ai-url-training':
+            return sb_json_response(sb_open_ai_url_training($_POST['url']));
+        case 'open-ai-qea-training':
+            return sb_json_response(sb_open_ai_qea_training(sb_post('questions_answers', []), sb_post('language'), sb_post('reset')));
+        case 'open-ai-articles-training':
+            return sb_json_response(sb_open_ai_articles_training());
+        case 'open-ai-embeddings-delete':
+            return sb_json_response(sb_open_ai_embeddings_delete($_POST['sources_to_delete']));
         case 'open-ai-source-file-to-paragraphs':
             return sb_json_response(sb_open_ai_source_file_to_paragraphs($_POST['url']));
-        case 'get-embeddings-database':
+        case 'open-ai-troubleshoot':
+            return sb_json_response(sb_open_ai_troubleshoot());
+        case 'open-ai-html-to-paragraphs':
+            return sb_json_response(sb_open_ai_html_to_paragraphs($_POST['url']));
+        case 'open-ai-get-training-files':
+            return sb_json_response(sb_open_ai_get_training_source_names());
+        case 'open-ai-get-qea-training':
             return sb_json_response(sb_get_external_setting('embedding-texts', []));
-        case 'embeddings-database':
-            return sb_json_response(sb_embeddings_database(sb_post('questions_answers', []), sb_post('language'), sb_post('reset')));
+        case 'open-ai-get-information':
+            return sb_json_response(sb_open_ai_embeddings_get_information());
+        case 'open-ai-playground-message':
+            return sb_json_response(sb_open_ai_playground_message($_POST['messages']));
+        case 'open-ai-flows-save':
+            return sb_json_response(sb_flows_save($_POST['flows']));
+        case 'open-ai-flows-get':
+            return sb_json_response(sb_flows_get(sb_post('name')));
         case 'remove-email-cron':
             return sb_json_response(sb_remove_email_cron($_POST['conversation_id']));
         case 'envato':
@@ -525,8 +547,6 @@ function sb_ajax_execute() {
             return sb_json_response(sb_get_sitemap_urls($_POST['sitemap_url']));
         case 'update-tags':
             return sb_json_response(sb_tags_update($_POST['conversation_id'], sb_post('tags', []), sb_post('add')));
-        case 'open-ai-delete-training':
-            return sb_json_response(sb_open_ai_delete_training());
         case 'audio-clip':
             return sb_json_response(sb_audio_clip($_POST['audio']));
         case 'audio-to-text':
@@ -543,6 +563,12 @@ function sb_ajax_execute() {
             return sb_json_response(sb_open_ai_data_scraping($_POST['conversation_id'], $_POST['prompt_id']));
         case 'assign-conversations-active-agent':
             return sb_json_response(sb_routing_assign_conversations_active_agent());
+        case 'whatsapp-clear-flows':
+            return sb_json_response(sb_save_external_setting('wa-flows', []));
+        case 'generate-sitemap':
+            return sb_json_response(sb_generate_sitemap($_POST['url']));
+        case 'get-select-phone':
+            return sb_json_response(sb_select_phone());
         default:
             return '["error", "Support Board Error [ajax.php]: No functions found with the given name."]';
     }
@@ -564,9 +590,9 @@ function sb_post($key, $default = false) {
 function sb_security($function) {
     $security = [
         'admin_db' => ['open-ai-source-file-to-paragraphs', 'save-settings', 'update-user', 'get-conversation'],
-        'admin' => ['update-sw', 'open-ai-delete-training', 'open-ai-embeddings-articles', 'open-ai-get-embeddings-delete', 'get-sitemap-urls', 'open-ai-source-file-to-paragraphs', 'open-ai-get-embeddings', 'get-user-by', 'get-agent-department', 'upload-path', 'get-multi-setting', 'save-external-setting', 'get-external-setting', 'update-bot', 'get-last-message', 'delete-attachments', 'open-ai-user-expressions-intents', 'slack-channels', 'twitter-subscribe', 'whatsapp-360-synchronization', 'telegram-synchronization', 'viber-synchronization', 'import-settings', 'export-settings', 'updates-available', 'automations-save', 'path', 'reports-export', 'reports', 'aecommerce-sync-admins', 'aecommerce-sync-sellers', 'aecommerce-sync', 'whmcs-sync', 'whmcs-articles-sync', 'perfex-articles-sync', 'perfex-sync', 'woocommerce-get-session', 'woocommerce-get-attributes', 'woocommerce-get-taxonomies', 'woocommerce-dialogflow-intents', 'woocommerce-dialogflow-entities', 'dialogflow-curl', 'delete-leads', 'system-requirements', 'save-settings', 'get-settings', 'get-all-settings', 'delete-user', 'delete-users', 'app-get-key', 'app-activation', 'app-disable', 'wp-sync'],
-        'agent' => ['assign-conversations-active-agent', 'init-articles-admin', 'data-scraping', 'opencart-order-details', 'opencart-panel', 'get-embeddings-database', 'embeddings-database', 'get-tags', 'add-user', 'get-html', 'envato', 'whatsapp-get-templates', 'automations-is-sent', 'logs', 'newsletter', 'get-last-agent-in-conversation', 'messaging-platforms-send-message', 'open-ai-user-expressions', 'whatsapp-send-template', 'martfury-sync', 'martfury-sync-sellers', 'martfury-get-conversation-details', 'zendesk-update-ticket', 'zendesk-create-ticket', 'zendesk-get-conversation-details', 'dialogflow-knowledge', 'save-articles-categories', 'on-close', 'check-conversations-assignment', 'delete-file', 'dialogflow-smart-reply', 'dialogflow-update-intent', 'dialogflow-get-intents', 'ump-get-conversation-details', 'armember-get-conversation-details', 'count-conversations', 'reports-update', 'get-agents-ids', 'send-custom-email', 'get-users-with-details', 'direct-message', 'messenger-send-message', 'wechat-send-message', 'whatsapp-send-message', 'telegram-send-message', 'viber-send-message', 'line-send-message', 'twitter-send-message', 'get-user-language', 'get-notes', 'add-note', 'update-note', 'delete-note', 'user-online', 'get-user-from-conversation', 'aecommerce-get-conversation-details', 'whmcs-get-conversation-details', 'woocommerce-get-order', 'woocommerce-coupon-delete-expired', 'woocommerce-coupon-check', 'woocommerce-coupon', 'woocommerce-is-in-stock', 'woocommerce-get-attribute-by-name', 'woocommerce-get-attribute-by-term', 'woocommerce-get-product-taxonomies', 'woocommerce-get-product-images', 'woocommerce-get-product-id-by-name', 'woocommerce-get-user-orders', 'woocommerce-get-product', 'woocommerce-get-customer', 'dialogflow-get-agent', 'dialogflow-get-entity', 'woocommerce-products-popup', 'woocommerce-search-products', 'woocommerce-get-products', 'woocommerce-get-data', 'is-agent-typing', 'close-message', 'count-users', 'get-users', 'get-new-users', 'get-online-users', 'search-users', 'get-conversations', 'get-new-conversations', 'search-conversations', 'csv-users', 'send-test-email', 'slack-users', 'clean-data', 'save-translations', 'dialogflow-intent', 'dialogflow-create-intent', 'dialogflow-entity', 'get-rating', 'save-article', 'update', 'archive-slack-channels'],
-        'user' => ['audio-to-text', 'update-tags', 'execute-bot-message', 'remove-email-cron', 'aws-s3', 'is-allowed-extension', 'translate-string', 'dialogflow-human-takeover', 'google-language-detection-update-user', 'google-translate', 'get-agents-in-conversation', 'update-conversation-agent', 'update-conversation-department', 'get-avatar', 'slack-presence', 'woocommerce-waiting-list', 'dialogflow-set-active-context', 'search-user-conversations', 'update-login', 'update-user', 'get-user', 'get-user-extra', 'update-user-to-lead', 'new-conversation', 'get-user-conversations', 'get-new-user-conversations', 'send-slack-message', 'slack-unarchive', 'update-message', 'delete-message', 'update-user-and-message', 'get-conversation', 'get-new-messages', 'set-rating', 'create-email', 'send-email']
+        'admin' => ['messenger-unsubscribe', 'open-ai-flows-save', 'open-ai-playground-message', 'open-ai-get-information', 'open-ai-url-training', 'open-ai-file-training', 'open-ai-get-training-files', 'update-sw', 'open-ai-articles-training', 'open-ai-embeddings-delete', 'get-sitemap-urls', 'open-ai-source-file-to-paragraphs', 'open-ai-generate-embeddings', 'get-user-by', 'get-agent-department', 'upload-path', 'get-multi-setting', 'save-external-setting', 'get-external-setting', 'update-bot', 'get-last-message', 'delete-attachments', 'open-ai-user-expressions-intents', 'slack-channels', 'twitter-subscribe', 'whatsapp-360-synchronization', 'telegram-synchronization', 'viber-synchronization', 'import-settings', 'export-settings', 'updates-available', 'automations-save', 'path', 'reports-export', 'reports', 'aecommerce-sync-admins', 'aecommerce-sync-sellers', 'aecommerce-sync', 'whmcs-sync', 'whmcs-articles-sync', 'perfex-articles-sync', 'perfex-sync', 'woocommerce-get-session', 'woocommerce-get-attributes', 'woocommerce-get-taxonomies', 'woocommerce-dialogflow-intents', 'woocommerce-dialogflow-entities', 'dialogflow-curl', 'delete-leads', 'system-requirements', 'save-settings', 'get-settings', 'get-all-settings', 'delete-user', 'delete-users', 'app-get-key', 'app-activation', 'app-disable', 'wp-sync'],
+        'agent' => ['generate-sitemap', 'open-ai-html-to-paragraphs', 'google-troubleshoot', 'open-ai-troubleshoot', 'whatsapp-clear-flows', 'assign-conversations-active-agent', 'init-articles-admin', 'data-scraping', 'opencart-order-details', 'opencart-panel', 'open-ai-get-qea-training', 'open-ai-qea-training', 'get-tags', 'add-user', 'get-html', 'envato', 'whatsapp-get-templates', 'automations-is-sent', 'logs', 'newsletter', 'get-last-agent-in-conversation', 'messaging-platforms-send-message', 'open-ai-user-expressions', 'whatsapp-send-template', 'martfury-sync', 'martfury-sync-sellers', 'martfury-get-conversation-details', 'zendesk-update-ticket', 'zendesk-create-ticket', 'zendesk-get-conversation-details', 'dialogflow-knowledge', 'save-articles-categories', 'on-close', 'check-conversations-assignment', 'delete-file', 'dialogflow-smart-reply', 'dialogflow-update-intent', 'dialogflow-get-intents', 'ump-get-conversation-details', 'armember-get-conversation-details', 'count-conversations', 'reports-update', 'get-agents-ids', 'send-custom-email', 'get-users-with-details', 'direct-message', 'messenger-send-message', 'wechat-send-message', 'whatsapp-send-message', 'telegram-send-message', 'viber-send-message', 'zalo-send-message', 'line-send-message', 'twitter-send-message', 'get-user-language', 'get-notes', 'add-note', 'update-note', 'delete-note', 'user-online', 'get-user-from-conversation', 'aecommerce-get-conversation-details', 'whmcs-get-conversation-details', 'woocommerce-get-order', 'woocommerce-coupon-delete-expired', 'woocommerce-coupon-check', 'woocommerce-coupon', 'woocommerce-is-in-stock', 'woocommerce-get-attribute-by-name', 'woocommerce-get-attribute-by-term', 'woocommerce-get-product-taxonomies', 'woocommerce-get-product-images', 'woocommerce-get-product-id-by-name', 'woocommerce-get-user-orders', 'woocommerce-get-product', 'woocommerce-get-customer', 'dialogflow-get-agent', 'dialogflow-get-entity', 'woocommerce-products-popup', 'woocommerce-search-products', 'woocommerce-get-products', 'woocommerce-get-data', 'is-agent-typing', 'close-message', 'count-users', 'get-users', 'get-new-users', 'get-online-users', 'search-users', 'get-conversations', 'get-new-conversations', 'search-conversations', 'csv-users', 'send-test-email', 'slack-users', 'clean-data', 'save-translations', 'dialogflow-intent', 'dialogflow-create-intent', 'dialogflow-entity', 'get-rating', 'save-article', 'update', 'archive-slack-channels'],
+        'user' => ['open-ai-flows-get', 'audio-to-text', 'update-tags', 'execute-bot-message', 'remove-email-cron', 'aws-s3', 'is-allowed-extension', 'translate-string', 'dialogflow-human-takeover', 'google-language-detection-update-user', 'google-translate', 'get-agents-in-conversation', 'update-conversation-agent', 'update-conversation-department', 'get-avatar', 'slack-presence', 'woocommerce-waiting-list', 'dialogflow-set-active-context', 'search-user-conversations', 'update-login', 'update-user', 'get-user', 'get-user-extra', 'update-user-to-lead', 'new-conversation', 'get-user-conversations', 'get-new-user-conversations', 'send-slack-message', 'slack-unarchive', 'update-message', 'delete-message', 'update-user-and-message', 'get-conversation', 'get-new-messages', 'set-rating', 'create-email', 'send-email']
     ];
     $user_id = sb_post('user_id', -1);
     $active_user = sb_get_active_user(sb_post('login-cookie'));

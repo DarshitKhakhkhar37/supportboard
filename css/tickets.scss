@@ -113,11 +113,14 @@
     }
 
     > div > div > .sb-top {
+        display: flex;
+        align-items: center;
         border-bottom: 1px solid $border-color;
         padding: 15px 20px;
         height: 60px;
         min-height: 60px;
         box-sizing: border-box;
+        justify-content: space-between;
     }
 
     .sb-no-conversation-message {
@@ -417,90 +420,6 @@
             color: $white;
         }
 
-        .sb-profile-agent {
-            text-align: left;
-            display: none;
-
-            > div > span {
-                display: block;
-            }
-
-            img {
-                width: 31px;
-                height: 31px;
-            }
-
-            .sb-name {
-                letter-spacing: 0.5px;
-                font-size: 13px;
-                font-weight: 500;
-                line-height: 21px;
-            }
-
-            .sb-status {
-                position: relative;
-                font-weight: 400;
-                font-size: 13px;
-                letter-spacing: 0.3px;
-                line-height: 20px;
-                padding-left: 15px;
-                color: rgba(70, 79, 87, 0.75);
-
-                &:empty {
-                    display: none;
-                }
-
-                &:before {
-                    content: "";
-                    width: 8px;
-                    height: 8px;
-                    position: absolute;
-                    border-radius: 50%;
-                    margin-top: -4px;
-                    top: 50%;
-                    left: 0;
-                    background: rgb(212, 212, 212);
-                }
-
-                &.sb-status-online:before {
-                    background: rgb(19, 202, 126);
-                }
-            }
-
-            .sb-status-typing {
-                padding-left: 0;
-                float: left;
-
-                &:before {
-                    display: none;
-                }
-
-                &:after {
-                    content: "...";
-                    position: absolute;
-                    width: 15px;
-                    left: calc(100% + 5px);
-                    bottom: 0;
-                    font-weight: 500;
-                    letter-spacing: 1px;
-                    overflow: hidden;
-                    white-space: nowrap;
-                    animation: sb-typing 1s infinite;
-                }
-            }
-
-            &.sb-active {
-                display: flex;
-            }
-
-            &:not(.sb-active) + .sb-agent-label:not(.sb-active) + .sb-ticket-details {
-                padding-top: 0;
-                padding-left: 0;
-                margin-top: 0;
-                border-top: 0;
-            }
-        }
-
         .sb-agent-label, .sb-department {
             display: none;
             align-items: center;
@@ -670,6 +589,90 @@
             display: none;
         }
     }
+
+    .sb-profile-agent {
+        text-align: left;
+        display: none;
+
+        > div > span {
+            display: block;
+        }
+
+        img {
+            width: 31px;
+            height: 31px;
+        }
+
+        .sb-name {
+            letter-spacing: 0.5px;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 21px;
+        }
+
+        .sb-status {
+            position: relative;
+            font-weight: 400;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+            line-height: 20px;
+            padding-left: 15px;
+            color: rgba(70, 79, 87, 0.75);
+
+            &:empty {
+                display: none;
+            }
+
+            &:before {
+                content: "";
+                width: 8px;
+                height: 8px;
+                position: absolute;
+                border-radius: 50%;
+                margin-top: -4px;
+                top: 50%;
+                left: 0;
+                background: rgb(212, 212, 212);
+            }
+
+            &.sb-status-online:before {
+                background: rgb(19, 202, 126);
+            }
+        }
+
+        .sb-status-typing {
+            padding-left: 0;
+            float: left;
+
+            &:before {
+                display: none;
+            }
+
+            &:after {
+                content: "...";
+                position: absolute;
+                width: 15px;
+                left: calc(100% + 5px);
+                bottom: 0;
+                font-weight: 500;
+                letter-spacing: 1px;
+                overflow: hidden;
+                white-space: nowrap;
+                animation: sb-typing 1s infinite;
+            }
+        }
+
+        &.sb-active {
+            display: flex;
+        }
+
+        &:not(.sb-active) + .sb-agent-label:not(.sb-active) + .sb-ticket-details {
+            padding-top: 0;
+            padding-left: 0;
+            margin-top: 0;
+            border-top: 0;
+        }
+    }
 }
 
 /*
@@ -695,7 +698,8 @@
                 text-decoration: none;
                 line-height: 30px;
                 color: $color-black;
-                font-size: 20px;
+                font-size: 17px;
+                letter-spacing: .4px;
                 white-space: nowrap;
             }
 
@@ -714,30 +718,15 @@
                 }
             }
 
-            &:not(.sb-active) {
-                min-height: 0;
-                border: none;
-                padding: 0;
-                height: 0;
-
-                div:not(.sb-label-date-top) {
-                    display: none;
-                }
-
-                & + .sb-conversation {
-                    height: 100%;
-                }
-            }
-
             .sb-label-date-top {
-                top: -6px;
+                top: 54px;
             }
         }
     }
 
     .sb-panel {
         padding: 20px;
-        height: 100%;
+        height: calc(100% - 60px);
         box-sizing: border-box;
         display: none;
 
@@ -790,7 +779,7 @@
     }
 
     &:not(.sb-panel-active) .sb-collapsed + .sb-panel-main > .sb-top {
-        padding-left: 45px;
+        padding-left: 65px;
     }
 
     &.sb-no-arrows .sb-panel-left > .sb-top {
@@ -886,6 +875,25 @@
 
 .sb-privacy .sb-buttons {
     margin-top: 30px;
+}
+
+.sb-tickets .sb-top-hide {
+    height: 0 !important;
+    border: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+
+    .sb-profile, .sb-title {
+        display: none;
+    }
+
+    .sb-label-date-top {
+        top: -6px !important;
+    }
+
+    & + .sb-conversation {
+        height: 100%;
+    }
 }
 
 /*
@@ -1058,7 +1066,7 @@
         display: inline-block;
     }
 
-    .sb-label-date-top {
+    .sb-label-date-top, .sb-btn-audio-clip {
         display: none;
     }
 }
@@ -1110,10 +1118,6 @@
 
     .sb-menu {
         display: none;
-    }
-
-    > div:last-child {
-        padding-top: 15px;
     }
 
     &:hover {
@@ -1283,7 +1287,7 @@
 
     &:not(.sb-panel-active) .sb-collapsed + .sb-panel-main > .sb-top {
         padding-left: 20px;
-        padding-right: 45px;
+        padding-right: 65px;
     }
 
     .sb-panel-main .sb-top .sb-close {

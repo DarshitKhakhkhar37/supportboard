@@ -12,7 +12,7 @@
 
 (function ($) {
 
-    var version = '3.7.3';
+    var version = '3.7.5';
     var main;
     var global;
     var upload_target;
@@ -39,7 +39,6 @@
     var document_title = document.title;
     var CHAT_SETTINGS = {};
     var mobile = $(window).width() < 465;
-    var mobile = $(window).width() < 465;
     var bot_id;
     var force_action = '';
     var dialogflow_human_takeover;
@@ -50,10 +49,11 @@
     var cloud_data = false;
     var articles_page = false;
     var ajax_calls;
+    var audio_mp3;
     var audio_recorder_dom;
     var audio_recorder_dom_time;
     var audio_recorder;
-    var audio_recorder_chunks;
+    var audio_recorder_chunks = [];
     var audio_recorder_time = [0, false];
     var audio_recorder_time_player = [0, false];
     var audio_recorder_stream;
@@ -63,7 +63,7 @@
 
     /*
     * ----------------------------------------------------------
-    * EXTERNAL PLUGINS
+    * EXTERNAL SCRIPTS
     * ----------------------------------------------------------
     */
 
@@ -202,6 +202,20 @@
             });
         },
 
+        // Get file type
+        getFileType: function (url_or_name) {
+            if (/.jpg|.jpeg|.png|.gif|.webp/.test(url_or_name)) {
+                return 'image';
+            }
+            if (/.mp3|.ogg|.wav|.aac/.test(url_or_name)) {
+                return 'audio';
+            }
+            if (/.mp4|.mkv|.vob|.3gp|.webm/.test(url_or_name)) {
+                return 'video';
+            }
+            return 'file';
+        },
+
         // UTC Time
         UTC: function (datetime) {
             return new Date(datetime).getTime() - utc_offset;
@@ -294,7 +308,9 @@
             let diff_days = ((now - date_string) / 86400000) * (future ? -1 : 1);
             let days = [sb_('Sunday'), sb_('Monday'), sb_('Tuesday'), sb_('Wednesday'), sb_('Thursday'), sb_('Friday'), sb_('Saturday')];
             let time = date_string.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-            if (time.charAt(0) === '0' && (time.includes('PM') || time.includes('AM'))) time = time.substring(1);
+            if (time.charAt(0) === '0' && (time.includes('PM') || time.includes('AM'))) {
+                time = time.substring(1);
+            }
             if (diff_days < 1 && now.getDate() == date_string.getDate()) {
                 return extended ? `<span>${sb_('Today')}</span> <span>${time}</span>` : `<span data-today>${time}</span>`;
             } else if (diff_days < 7) {
@@ -346,7 +362,7 @@
         // Set and get users last activity
         updateUsersActivity: function (user_id, return_user_id, onSuccess) {
             if (SBPusher.active) {
-                onSuccess(SBPusher.online_ids.includes(return_user_id) ? 'online' : 'offline');
+                onSuccess((admin && SB_ADMIN_SETTINGS.bot_id == return_user_id) || (!admin && CHAT_SETTINGS.bot_id == return_user_id) ? 'online' : (SBPusher.online_ids.includes(return_user_id) ? 'online' : 'offline'));
             } else {
                 SBF.ajax({
                     function: 'update-users-last-activity',
@@ -414,7 +430,11 @@
         loginForm: function (button, area = false, onSuccess = false) {
             button = $(button);
             if (!button.sbLoading()) {
-                if (area === false) area = button.closest('.sb-rich-login'); else area = $(area);
+                if (area === false) {
+                    area = button.closest('.sb-rich-login');
+                } else {
+                    area = $(area);
+                }
                 let email = $.trim(area.find('#email input').val());
                 let password = $.trim(area.find('#password input').val());
                 if (!email || !password) {
@@ -457,7 +477,9 @@
 
         // Set the login cookie
         loginCookie: function (value = false) {
-            if (value === false) { return this.cookie('sb-login') ? this.cookie('sb-login') : storage('login'); }
+            if (value === false) {
+                return this.cookie('sb-login') ? this.cookie('sb-login') : storage('login');
+            }
             if (CHAT_SETTINGS.cloud) {
                 storage('login', value);
             } else {
@@ -537,7 +559,9 @@
                     onSuccess();
                     return false;
                 } else {
-                    if (response.cookie) SBF.loginCookie(response.cookie);
+                    if (response.cookie) {
+                        SBF.loginCookie(response.cookie);
+                    }
                     if (response.user_type) {
                         if (!admin && SBF.isAgent(response.user_type)) {
                             let message = 'You are logged in as both agent and user. Logout or use another browser, Incognito or Private mode, to login as user. Force a logout by running the function SBF.reset() in the console.';
@@ -736,9 +760,14 @@
                         }, 2000);
                     }
                 }
-                if (is_admin && (Date.now() - (mobile ? 60000 : 180000)) > conversation_update_last_check) {
-                    SBAdmin.conversations.update();
-                    conversation_update_last_check = Date.now();
+                if (is_admin) {
+                    if ((Date.now() - (mobile ? 60000 : 180000)) > conversation_update_last_check) {
+                        SBAdmin.conversations.update();
+                        conversation_update_last_check = Date.now();
+                    }
+                    if (mobile) {
+                        SBChat.update();
+                    }
                 }
                 document.title = document_title;
                 this.serviceWorker.closeNotifications();
@@ -857,7 +886,7 @@
                             for (let i = 0; i < notifications.length; i += 1) {
                                 notifications[i].close();
                             }
-                        } else if (index < 500) {
+                        } else if (index < 300 && SBF.visibility_status == 'visible') {
                             setTimeout(() => {
                                 this.closeNotifications(index + 1);
                             }, 10);
@@ -879,6 +908,11 @@
                     return response
                 });
             }
+        },
+
+        beautifyAttachmentName: function (name) {
+            let index = name.indexOf('_');
+            return index !== -1 ? name.substring(index + 1) : name;
         }
     }
 
@@ -1189,9 +1223,9 @@
         return showed;
     };
 
-    $.fn.sbUploadFiles = function (onSuccess) {
+    $.fn.sbUploadFiles = function (onSuccess, index = false) {
         let files = $(this).prop('files');
-        for (var i = 0; i < files.length; i++) {
+        for (var i = (index === false ? 0 : index); i < (index === false ? files.length : index + 1); i++) {
             let file = files[i];
             let size_mb = file.size / (1024 ** 2);
             let max_size = admin ? SB_ADMIN_SETTINGS.max_file_size : CHAT_SETTINGS.max_file_size;
@@ -1592,8 +1626,10 @@
         }
 
         get(id) {
-            if (id in this.details && !SBF.null(this.details[id])) return this.details[id];
-            else return '';
+            if (id in this.details && !SBF.null(this.details[id])) {
+                return this.details[id];
+            }
+            return '';
         }
 
         set(id, value) {
@@ -1608,7 +1644,7 @@
             } else if (key !== false) {
                 return key in payload ? payload[key] : (payload.id && payload.id == key ? payload : false);
             }
-            return payload;
+            return ['boolean', 'string'].includes(typeof payload) ? [] : payload;
         }
 
         getCode(translation = false) {
@@ -1630,38 +1666,38 @@
             // Rich Messages
             if (agent) {
                 message = message.replace(/\n/g, '<br>');
-                let shortcodes = message.match(/\[.+?\]/g) || [];
-                let rich = false;
+                let shortcodes = message.match(/\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]/g) || [];
+                let is_rich_message = false;
                 let count = shortcodes.length;
                 for (var i = 0; i < count; i++) {
                     let settings = SBRichMessages.shortcode(shortcodes[i]);
                     if (settings[0]) {
-                        let rich_message = SBRichMessages.generate(settings[1], settings[0]);
-                        if (rich_message) {
-                            if (message.charAt(0) != '[') {
-                                rich_message = rich_message.replace('sb-rich-message', 'sb-rich-message sb-margin-top');
+                        if (settings[0] == 'action') {
+                            message = message.replace(shortcodes[i], '');
+                        } else {
+                            let rich_message = SBRichMessages.generate(settings[1], settings[0]);
+                            if (rich_message) {
+                                message = message.replace(shortcodes[i], rich_message);
+                                is_rich_message = true;
+                                type = `data-type="${settings[0]}"`;
                             }
-                            if (message.charAt(message.length - 1) != ']') {
-                                rich_message = rich_message.replace('sb-rich-message', 'sb-rich-message sb-margin-bottom');
-                            }
-                            message = message.replace(shortcodes[i], '{{RM}}');
-                            message = this.render(message).replace('{{RM}}', rich_message);
-                            rich = true;
-                            type = `data-type="${settings[0]}"`;
                         }
                     }
                 }
-                if (rich) {
+                if (is_rich_message) {
                     css += ' sb-rich-cnt';
                     if (count > 1) {
                         type = 'data-type="multiple"';
                     }
                 }
-                if (!count) {
-                    message = this.render(message);
-                }
-            } else {
-                message = this.render(message);
+            }
+            let matches = [...message.matchAll(/data-success="([^"]*)"/g)].map(match => match[1]);
+            for (var i = 0; i < matches.length; i++) {
+                message = message.replace(matches[i], '{R' + i + '}');
+            }
+            message = this.render(message);
+            for (var i = 0; i < matches.length; i++) {
+                message = message.replace('{R' + i + '}', matches[i]);
             }
 
             // Attachments
@@ -1670,14 +1706,14 @@
                 for (var i = 0; i < attachments.length; i++) {
                     let url = attachments[i][1];
                     let url_and_name = url + attachments[i][0];
-                    if (/.jpg|.jpeg|.png|.gif|.webp/.test(url_and_name)) {
+                    if (SBF.getFileType(url_and_name) == 'image') {
                         let size = '';
                         if (attachments[i].length > 2) {
                             size = attachments[i][2].split('|');
                             size = `width="${size[0]}" style="aspect-ratio: ${size[0]} / ${size[1]}"`;
                         }
                         media_code += `<div class="sb-image${url_and_name.includes('.png') ? ' sb-image-png' : (url.includes('sticker_') ? ' sb-image-sticker' : '')}"><img loading="lazy" src="${url}" ${size}/></div>`;
-                    } else if (/.mp3|.ogg|.wav/.test(url_and_name) || url.includes('voice_message')) {
+                    } else if (SBF.getFileType(url_and_name) == 'audio' || url.includes('voice_message') || url.includes('audioclip')) {
                         if ((admin && !SB_ADMIN_SETTINGS.speech_recognition) || (!admin && !CHAT_SETTINGS.speech_recognition)) {
                             message = '';
                         }
@@ -1700,7 +1736,7 @@
             let len = message.length;
 
             // Code block
-            let codes = message.match(/```[\s\S]*```/) || [];
+            let codes = message.match(/```([\s\S]*?)```/g) || [];
             for (var i = 0; i < codes.length; i++) {
                 message = message.replace(codes[i], '[code-' + i + ']');
             }
@@ -1712,7 +1748,7 @@
             message = message.replace(/\*([^\**]+)\*/g, "<b>$1</b>");
 
             // Italic
-            message = message.replace(/\__([^\____]+)\__/g, "<i>$1</i>");
+            message = message.replace(/__(.+?)__/g, "<i>$1</i>");
 
             // Strikethrough
             message = message.replace(/\~([^\~~]+)\~/g, "<del>$1</del>");
@@ -1739,13 +1775,25 @@
             if (message.includes('www.')) {
                 message = message.replaceAll('www.', 'https://www.').replaceAll('https://https:', 'https:').replaceAll('http://https:', 'http:');
             }
+            let replace = [['href="http', '[L1]'], ['src="http', '[L2]'], ['url("http', '[L3]'], ['url(\'http', '[L4]'], ['extra="http', '[L5]']];
+            for (var i = 0; i < replace.length; i++) {
+                message = message.replaceAll(replace[i][0], replace[i][1]);
+            }
             if (message.includes('http')) {
-                message = message.autoLink({ target: '_blank' });
+                message = message.autoLink({
+                    target: '_blank',
+                    callback: function (url) {
+                        return url.includes('#sb-') ? `<a href="${url.split('#sb-')[0]}" target="_blank">${url.split('#sb-')[1].replaceAll('--', ' ')}</a>` : null;
+                    }
+                });
+            }
+            for (var i = 0; i < replace.length; i++) {
+                message = message.replaceAll(replace[i][1], replace[i][0]);
             }
 
             // Code block restore
             for (var i = 0; i < codes.length; i++) {
-                message = message.replace('[code-' + i + ']', '<pre>' + $.trim($.trim(codes[i]).substr(3, codes[i].length - 6).replace(/(?:\r\n|\r|\n)/g, '<br>')) + '</pre>');
+                message = message.replace('[code-' + i + ']', '<pre>' + $.trim($.trim(codes[i].replace(/```<br>/g, '```').replace(/<br>```/g, '```')).replace(/```/g, '').replace(/(?:\r\n|\r|\n)/g, '<br>')) + '</pre>');
             }
 
             return message.replace(/&amp;lt;/g, '&lt;');
@@ -1792,11 +1840,15 @@
                 SBF.error('Message array not of type Array', 'SBConversation.constructor');
             }
             let keys = ['conversation_id', 'conversation_user_id', 'conversation_first_name', 'conversation_last_name', 'conversation_profile_image', 'conversation_user_type', 'conversation_creation_time', 'conversation_status_code'];
+            let keys_delete = ['payload'];
             for (var i = 0; i < keys.length; i++) {
                 if (details[keys[i]]) {
                     this.details[keys[i].replace('conversation_', '')] = details[keys[i]];
                 }
                 delete this.details[keys[i]];
+            }
+            for (var i = 0; i < keys_delete.length; i++) {
+                delete this.details[keys_delete[i]];
             }
             if (details) {
                 this.details.tags = 'tags' in details ? (typeof details.tags === 'string' ? details.tags.split(',') : details.tags) : [];
@@ -1844,7 +1896,7 @@
         getLastMessage() {
             let index = this.messages.length - 1;
             for (var i = index; i > -1; i--) {
-                if (this.messages[i].message || this.messages[i].attachments.length) {
+                if (this.messages[i].message || this.messages[i].attachments.length || this.messages[i].payload('preview')) {
                     return this.messages[i];
                 }
             }
@@ -1931,6 +1983,9 @@
             let message = this.getLastMessage();
             if (message) {
                 let text = message.message;
+                if (!text && message.payload('preview')) {
+                    text = message.payload('preview');
+                }
                 if (admin) {
                     let payload = message.payload();
                     let is_agent = SBF.isAgent(message.get('user_type'));
@@ -1941,7 +1996,7 @@
                     if (shortcodes.length) {
                         let shortcode = SBRichMessages.shortcode(shortcodes[0]);
                         if (shortcode[0]) {
-                            text = text.replace(shortcodes[0], sb_(SBF.null(shortcode[1].message) ? (SBF.null(shortcode[1].title) ? (SBF.null(shortcode[1].name) ? (SBF.null(shortcode[1].link) ? sb_(SBF.slugToString(shortcode[0])) : shortcode[1].link) : shortcode[1].name) : shortcode[1].title) : shortcode[1].message));
+                            text = text.replace(shortcodes[0], shortcode[0] == 'action' ? '' : sb_(shortcode[1].message ? shortcode[1].message : (shortcode[1].title ? shortcode[1].title : (shortcode[1].name ? shortcode[1].name : (shortcode[1].link ? shortcode[1].link : (shortcode[1].values ? shortcode[1].values.replaceAll(',', ', ').replaceAll('  ', ' ') : (shortcode[1].options ? shortcode[1].options.replaceAll(',', ', ').replaceAll('  ', ' ') : sb_(SBF.slugToString(shortcode[0])))))))));
                         }
                     }
                 }
@@ -2003,19 +2058,23 @@
                     let id = this.messages[i].id;
                     if (ids.includes(id)) {
                         let div = chat.find(`[data-id="${id}"] .sb-time`);
-                        if (!div.find('i').length) div.append('<i class="sb-icon-check"></i>');
+                        if (!div.find('i').length) {
+                            div.append('<i class="sb-icon-check"></i>');
+                        }
                     }
                 }
             } else if (!admin && SBF.visibility_status == 'visible') {
                 ids = [];
                 for (var i = 0; i < this.messages.length; i++) {
                     let message = this.messages[i];
-                    if (SBF.isAgent(message.get('user_type')) && message.status_code != 2) {
+                    if (SBF.isAgent(message.get('user_type')) && message.get('status_code') != 2) {
                         ids.push(message.id);
                         message.set('status_code', 2);
                     }
                 }
-                if (ids.length) SBF.ajax({ function: 'update-messages-status', message_ids: ids });
+                if (ids.length) {
+                    SBF.ajax({ function: 'update-messages-status', message_ids: ids });
+                }
             }
         }
     }
@@ -2079,6 +2138,7 @@
                 this.addUserAndLogin(() => {
                     return this.sendMessage(user_id, message, attachments, onSuccess, payload);
                 }, true);
+                this.busy(true);
                 return;
             }
             if (!conversation) {
@@ -2091,6 +2151,7 @@
                     this.newConversation(conversation_status_code, user_id, '', [], (admin && SB_ACTIVE_AGENT.department ? SB_ACTIVE_AGENT.department : null), null, () => {
                         return this.sendMessage(user_id, message, attachments, onSuccess, payload);
                     });
+                    this.busy(true);
                     return;
                 }
             }
@@ -2347,10 +2408,10 @@
                         button.click();
                     }
                     setTimeout(() => {
-                        if (audio_recorder_chunks.length) {
-                            let form = new FormData();
-                            let is_wav = this.conversation && this.conversation.get('source') == 'ig';
-                            form.append('file', new File([new Blob(audio_recorder_chunks, { type: is_wav ? 'audio/wav' : 'audio/mp3' })], 'voice_message.' + (is_wav ? 'wav' : 'mp3')));
+                        let form = new FormData();
+                        let source = this.conversation ? this.conversation.get('source') : false;
+                        if (source == 'wa' || audio_recorder_chunks.length) {
+                            form.append('file', new File([source == 'wa' ? SBAudioRecorder.blob() : new Blob(audio_recorder_chunks, { type: source == 'ig' ? 'audio/wav' : 'audio/mp3' })], 'voice_message.' + (source == 'ig' ? 'wav' : 'mp3')));
                             SBF.upload(form, (response) => {
                                 SBChat.uploadResponse(response);
                                 this.submit();
@@ -2364,8 +2425,9 @@
                 }
                 this.sendMessage();
                 if (CHAT_SETTINGS.cron_email_piping_active) {
-                    setInterval(() => {
+                    setTimeout(() => {
                         SBF.ajax({ function: 'email-piping' });
+                        CHAT_SETTINGS.cron_email_piping_active = true;
                     }, 60000);
                     CHAT_SETTINGS.cron_email_piping_active = false;
                 }
@@ -2402,10 +2464,9 @@
                     }
                     return;
                 }
-                if (!active && (typeof SB_WP_WAITING_LIST !== ND || CHAT_SETTINGS.visitors_registration || CHAT_SETTINGS.welcome || CHAT_SETTINGS.subscribe || tickets) && (!tickets || !CHAT_SETTINGS.tickets_registration_required)) {
+                if (!active && (typeof SB_WP_WAITING_LIST !== ND || CHAT_SETTINGS.visitors_registration || CHAT_SETTINGS.welcome || tickets) && (!tickets || !CHAT_SETTINGS.tickets_registration_required)) {
                     this.addUserAndLogin(() => {
                         this.welcome();
-                        this.subscribe();
                         SBApps.woocommerce.waitingList();
                         this.finalizeInit();
                     });
@@ -2418,7 +2479,6 @@
                     chat_header.find('.sb-title').html(`${sb_('Hello')} ${activeUser().nameBeautified}!`);
                 }
                 this.welcome();
-                this.subscribe();
                 if (!SBPusher.active) {
                     setInterval(() => {
                         this.updateConversations();
@@ -2593,28 +2653,29 @@
                                     this.datetime_last_message_conversation = message.get('creation_time');
 
                                     // Payload
-                                    if (!['boolean', 'string'].includes(typeof payload)) {
-                                        if (payload.event) {
-                                            let event = payload.event;
-                                            if ((event == 'delete-message' && this.conversation.getMessage(message.id) !== false) || (!admin && !message.message && !message.attachments.length && !payload)) {
-                                                this.deleteMessage(message.id);
-                                            }
-                                            if (event == 'woocommerce-update-cart' && !admin) {
-                                                SBApps.woocommerce.updateCart(payload.action, payload.id);
-                                            }
-                                            if (!SBApps.dialogflow.active() && (event == 'conversation-status-update-3' || event == 'conversation-status-update-4' || event == 'activate-bot')) {
-                                                SBApps.dialogflow.active('activate');
-                                                dialogflow_activation = true;
-                                            }
-                                            if (event == 'conversation-status-update-3' && ((!tickets && CHAT_SETTINGS.close_chat) || (tickets && CHAT_SETTINGS.tickets_close))) {
-                                                this.closeChat(false);
-                                                return;
-                                            }
+                                    if (payload.event) {
+                                        let event = payload.event;
+                                        if ((event == 'delete-message' && this.conversation.getMessage(message.id) !== false) || (!admin && !message.message && !message.attachments.length && !payload)) {
+                                            this.deleteMessage(message.id);
                                         }
-                                        if (payload['human-takeover'] && CHAT_SETTINGS.queue_human_takeover) {
-                                            CHAT_SETTINGS.queue = true;
-                                            SBChat.queue(SBChat.conversation.id);
+                                        if (event == 'woocommerce-update-cart' && !admin) {
+                                            SBApps.woocommerce.updateCart(payload.action, payload.id);
                                         }
+                                        if (!SBApps.dialogflow.active() && (event == 'conversation-status-update-3' || event == 'conversation-status-update-4' || event == 'activate-bot')) {
+                                            SBApps.dialogflow.active('activate');
+                                            dialogflow_activation = true;
+                                        }
+                                        if (event == 'conversation-status-update-3' && ((!tickets && CHAT_SETTINGS.close_chat) || (tickets && CHAT_SETTINGS.tickets_close))) {
+                                            this.closeChat(false);
+                                            return;
+                                        }
+                                    }
+                                    if (payload['human-takeover'] && CHAT_SETTINGS.queue_human_takeover) {
+                                        CHAT_SETTINGS.queue = true;
+                                        SBChat.queue(SBChat.conversation.id);
+                                    }
+                                    if (payload['human-takeover-fallback']) {
+                                        SBApps.dialogflow.typing_enabled = false;
                                     }
 
                                     // Message
@@ -2649,7 +2710,8 @@
                             let last_message = this.conversation.getLastMessage();
                             let user_type = last_message ? last_message.get('user_type') : false;
                             let is_agent = SBF.isAgent(user_type);
-                            if (!admin && is_agent && user_type != 'bot') {
+                            let is_agent_human = is_agent && user_type != 'bot';
+                            if (!admin && is_agent_human) {
                                 if (this.chat_open) {
                                     if (last_message && last_message.message.indexOf('sb-rich-success') == -1) {
                                         this.setConversationStatus(0);
@@ -2664,7 +2726,7 @@
                             }
 
                             // Queue
-                            if (storage('queue') == this.conversation.id && is_agent && user_type != 'bot') {
+                            if (storage('queue') == this.conversation.id && is_agent_human) {
                                 this.queue('clear');
                             }
 
@@ -2675,7 +2737,7 @@
                                 }
 
                                 // Sound notifications
-                                if (this.audio && ((!admin && (is_agent || user_type == 'bot')) || (admin && !SBF.isAgent(user_type)))) {
+                                if (this.audio && ((!admin && is_agent) || (admin && !SBF.isAgent(user_type)))) {
                                     this.playSound();
                                 }
                             }
@@ -2689,7 +2751,9 @@
                             if (CHAT_SETTINGS.auto_open && (this.dashboard || !this.chat_open)) {
                                 this.open();
                             }
-                            this.typing(-1, 'stop');
+                            if (is_agent_human) {
+                                this.typing(-1, 'stop');
+                            }
                             this.busy(false);
                             SBF.event('SBNewMessagesReceived', { messages: messages, conversation_id: this.conversation.id });
                             if (tickets) {
@@ -2840,7 +2904,7 @@
                         this.id_last_message = last_message.id;
                         for (var i = 0; i < count; i++) {
                             converstion_ids.push(response[i].id);
-                            if (!tickets && (response[i].status_code == 1 && storage('last-open-message') != last_message.id) && (!this.conversation || this.conversation.id != response[i].id)) {
+                            if (!tickets && (response[i].status_code == 1 && storage('last-open-message') < last_message.id) && (!this.conversation || this.conversation.id != response[i].id)) {
                                 this.updateNotifications(response[i].id, last_message.id);
                             }
                             if (!mobile && (now - SBF.UTC(response[i].messages[0].get('creation_time'))) < 6000) {
@@ -2923,6 +2987,7 @@
                     }
                 }
                 storage('open-conversation', conversation.id);
+                SBApps.dialogflow.typing_enabled = true;
                 SBF.event('SBActiveConversationChanged', conversation);
             } else {
                 SBF.error('Value not of type SBConversation', 'SBChat.setConversation');
@@ -3036,9 +3101,12 @@
         },
 
         // Manage the agent header
-        headerAgent: function () {
+        headerAgent: function (bot_fallback = false) {
             if (!admin && !tickets && !this.dashboard && this.conversation && (this.agent_id == -1 || (this.conversation.getLastMessage() && SBF.isAgent(this.conversation.getLastMessage().get('user_type')) && this.conversation.getLastMessage().get('user_id') != this.agent_id))) {
                 let agent = this.lastAgent();
+                if (!agent && bot_fallback) {
+                    agent = { user_id: CHAT_SETTINGS.bot_id, full_name: CHAT_SETTINGS.bot_name, profile_image: CHAT_SETTINGS.bot_image };
+                }
                 if (agent) {
                     this.agent_id = agent.user_id;
                     this.headerReset();
@@ -3275,6 +3343,7 @@
                             $(chat_status).addClass('sb-status-typing').html(sb_('Typing'));
                         } else {
                             let online = this.agent_online || this.agent_id == bot_id;
+                            clearTimeout(timeout_typing);
                             $(chat_status).removeClass('sb-status-typing').html(sb_(online ? 'Online' : 'Away'));
                             if (online) {
                                 $(chat_status).addClass('sb-status-online');
@@ -3328,7 +3397,8 @@
                 id: id ? id : this.articles_allowed_ids,
                 count: count,
                 return_categories: this.articles_category ? true : false,
-                full: id
+                full: id,
+                skip_language: true
             }, (response) => {
                 onSuccess(response);
             });
@@ -3422,8 +3492,12 @@
                 articles_page = $('body');
             }
             if (articles_page.sbLoading()) {
+                let url = SB_URL + '/include/articles.php' + (query_category ? '?category=' + query_category : (query_article_id ? '?article_id=' + query_article_id : (query_search ? '?search=' + query_search : '')));
+                if (cloud_data) {
+                    url += (url.includes('?') ? '&' : '?') + 'cloud=' + cloud_data;
+                }
                 SBF.loadResource(SB_URL + '/css/articles.css');
-                SBF.cors('GET', SB_URL + '/include/articles.php' + (query_category ? '?category=' + query_category : (query_article_id ? '?article_id=' + query_article_id : (query_search ? '?search=' + query_search : ''))), (html) => {
+                SBF.cors('GET', url, (html) => {
                     articles_page.html(html);
                     articles_page.sbLoading(false);
                 });
@@ -3680,9 +3754,14 @@
                             conversation_id: this.conversation.id,
                             name: 'follow_up',
                             check: false
+                        }, (response) => {
+                            if (response.settings.sound && this.audio) {
+                                this.audio.play();
+                            }
+                            this.skip = true;
+                            SBF.storageTime('email');
+                            SBF.event('SBFollowUp');
                         });
-                        SBF.storageTime('email');
-                        SBF.event('SBFollowUp');
                     }
                 }, CHAT_SETTINGS.follow === true ? (CHAT_SETTINGS.office_hours || agents_online ? 15000 : 5000) : parseInt(CHAT_SETTINGS.follow));
             }
@@ -3725,28 +3804,6 @@
             }
         },
 
-        // Subscribe message
-        subscribe: function () {
-            if (CHAT_SETTINGS.subscribe && !storage('subscribe') && activeUser() && SBF.null(activeUser().email) && activeUser()) {
-                setTimeout(() => {
-                    if (this.conversation.id) {
-                        SBF.ajax({
-                            function: 'execute-bot-message',
-                            conversation_id: this.conversation.id,
-                            name: 'subscribe',
-                            check: false
-                        }, (response) => {
-                            if (response.settings.sound && this.audio) {
-                                this.audio.play();
-                            }
-                            this.skip = true;
-                            storage('subscribe', true);
-                        });
-                    }
-                }, parseInt(CHAT_SETTINGS.subscribe_delay));
-            }
-        },
-
         // Offline timetable message
         offlineMessage: function () {
             if (!admin && CHAT_SETTINGS.timetable && (!CHAT_SETTINGS.office_hours || (!agents_online && !CHAT_SETTINGS.timetable_disable_agents))) {
@@ -3774,7 +3831,7 @@
                                 offline_message_sent = offline_message_sent.length ? offline_message_sent : false;
                                 if (offline_message_sent) {
                                     let last_agent_message = this.conversation.getLastUserMessage(false, true);
-                                    offline_message_sent = !last_agent_message || last_agent_message.get('index') < offline_message_sent[offline_message_sent.length - 1].get('index');
+                                    offline_message_sent = !last_agent_message || (last_agent_message.get('index') < offline_message_sent[offline_message_sent.length - 1].get('index') && Date.now() - 3600000) < SBF.unix(offline_message_sent[0].get('creation_time'));
                                 }
                                 if (!offline_message_sent) {
                                     this.sendMessage(bot_id, offline_message);
@@ -3878,7 +3935,7 @@
                         upload_target = false;
                     }, 500);
                 } else {
-                    let name = response[1].substr(response[1].lastIndexOf('/') + 1);
+                    let name = SBF.beautifyAttachmentName(response[1].substr(response[1].lastIndexOf('/') + 1));
                     chat_editor.find('.sb-attachments').append(`<div data-name="${name}" data-value="${response[1]}"${response.length > 2 ? ' data-size="' + response[2][0] + '|' + response[2][1] + '"' : ''}>${name}<i class="sb-icon-close"></i></div>`);
                     chat_editor.sbActive(true);
                 }
@@ -3945,17 +4002,28 @@
                                 valid = true;
                                 scroll_position = criteria;
                                 break;
-                            case 'include_urls':
-                            case 'exclude_urls':
                             case 'referring':
+                            case 'url':
                                 let url = conditions[j][0] == 'referring' ? document.referrer : window.location.href;
-                                let checks = conditions[j][2].split(',');
+                                let checks = conditions[j][2].replace(/https?:\/\/|www\./g, '').split(',');
+                                url = url.replace(/https?:\/\/|www\./g, '');
+                                for (var y = 0; y < checks.length; y++) {
+                                    if (url.includes(checks[y])) {
+                                        valid = criteria == 'contains';
+                                        break;
+                                    }
+                                }
+                                break;
+                            case 'include_urls': // Deprecated whole block
+                            case 'exclude_urls': // Deprecated whole block
+                                let url2 = conditions[j][0] == 'referring' ? document.referrer : window.location.href;
+                                let checks2 = conditions[j][2].replace(/https?:\/\/|www\./g, '').split(',');
                                 let include = conditions[j][0] != 'exclude_urls';
                                 if (!include) valid = true;
-                                url = url.replace('https://', '').replace('http://', '').replace('www.', '');
-                                for (var y = 0; y < checks.length; y++) {
-                                    checks[y] = $.trim(checks[y].replace('https://', '').replace('http://', '').replace('www.', ''));
-                                    if ((criteria == 'contains' && url.indexOf(checks[y]) != -1) || (criteria == 'does-not-contain' && url.indexOf(checks[y]) == -1) || (criteria == 'is-exactly' && checks[y] == url) || (criteria == 'is-not' && checks[y] != url)) {
+                                url2 = url2.replace(/https?:\/\/|www\./g, '');
+                                for (var y = 0; y < checks2.length; y++) {
+                                    checks2[y] = $.trim(checks2[y].replace('https://', '').replace('http://', '').replace('www.', ''));
+                                    if ((criteria == 'contains' && url2.indexOf(checks2[y]) != -1) || (criteria == 'does-not-contain' && url2.indexOf(checks2[y]) == -1) || (criteria == 'is-exactly' && checks2[y] == url2) || (criteria == 'is-not' && checks2[y] != url2)) {
                                         valid = include;
                                         break;
                                     }
@@ -3972,19 +4040,26 @@
                             case 'cities':
                             case 'languages':
                             case 'countries':
+                            case 'postal_code':
+                            case 'website':
+                            case 'company':
+                            case 'creation_time':
+                            case 'last_activity':
                                 valid = activeUser();
                                 server_conditions = true;
                                 break;
-                            case 'user_phone':
-                                valid = activeUser() && !SBF.null(activeUser().getExtra('phone'));
+                            case 'phone':
+                                valid = activeUser() && activeUser().getExtra('phone');
                                 break;
-                            case 'user_email':
-                                valid = activeUser() && !SBF.null(activeUser().email);
+                            case 'email':
+                                valid = activeUser() && activeUser().email;
                                 break;
                             default:
-                                valid = true;
+                                valid = activeUser() && activeUser().getExtra(conditions[j][0]);
                         }
-                        if (!valid) break;
+                        if (!valid) {
+                            break;
+                        }
                     }
                     if (['messages', 'emails', 'sms'].includes(automation.type) && !activeUser()) {
                         valid = false;
@@ -4003,7 +4078,7 @@
                                 });
                                 this.busy[automation.id] = true;
                             }
-                        } else {
+                        } else if (automation.type != 'messages' || !SBChat.registration(true)) {
                             this.runAll_final(automation, scroll_position, browsing_time);
                         }
                     }
@@ -4039,7 +4114,9 @@
                         if ((!SBPusher.active || SBPusher.started) && !(automation.id in this.busy)) {
                             if (automation.type == 'messages' && SBChat.chat_open) {
                                 let last_message = SBChat.conversation ? SBChat.conversation.getLastUserMessage(false, 'no-bot') : false;
-                                if (last_message && ((Date.now() - 600000) < SBF.unix(last_message.get('creation_time')))) return;
+                                if (last_message && ((Date.now() - 600000) < SBF.unix(last_message.get('creation_time')))) {
+                                    return;
+                                }
                             }
                             SBF.ajax({
                                 function: 'automations-run',
@@ -4184,24 +4261,23 @@
 
     var SBRichMessages = {
         rich_messsages: {
-            'email': '',
-            'button': '',
-            'video': '',
-            'image': '',
-            'woocommerce-button': '',
-            'chips': '<div class="sb-buttons">[options]</div>',
-            'buttons': '<div class="sb-buttons">[options]</div>',
-            'select': '<div class="sb-select"><p></p><ul>[options]</ul></div>',
-            'list': '<div class="sb-text-list">[values]</div>',
+            email: '',
+            button: '',
+            video: '',
+            image: '',
+            woocommerce_button: '',
+            chips: '<div class="sb-buttons">[options]</div>',
+            buttons: '<div class="sb-buttons">[options]</div>',
+            select: '<div class="sb-select"><p></p><ul>[options]</ul></div>',
+            list: '<div class="sb-text-list">[values]</div>',
             'list-image': '<div class="sb-image-list">[values]</div>',
-            'table': '<table><tbody>[header][values]</tbody></table>',
-            'inputs': '<div class="sb-form">[values]</div>',
-            'rating': `<div class="sb-rating" data-success-negative="[success-negative]"><span>[label]</span><div><i data-rating="positive" class="sb-submit sb-icon-like"><span>[positive]</span></i><i data-rating="negative" class="sb-submit sb-icon-dislike"><span>[negative]</span></i></div></div>`,
-            'card': '<div class="sb-card">[settings]</div>',
-            'share': '<div class="sb-social-buttons">[settings]</div>',
-            'slider': '<div class="sb-slider"><div>[items]</div></div><div class="sb-slider-arrow sb-icon-arrow-left[class]"></div><div class="sb-slider-arrow sb-icon-arrow-right sb-active[class]"></div>',
-            'slider-images': '<div class="sb-slider sb-slider-images"><div>[items]</div></div><div class="sb-slider-arrow sb-icon-arrow-left[class]"></div><div class="sb-slider-arrow sb-icon-arrow-right sb-active[class]"></div>',
-            'phone': ''
+            table: '<table><tbody>[header][values]</tbody></table>',
+            inputs: '<div class="sb-form">[values]</div>',
+            rating: `<div class="sb-rating" data-success-negative="[success-negative]"><span>[label]</span><div><i data-rating="positive" class="sb-submit sb-icon-like"><span>[positive]</span></i><i data-rating="negative" class="sb-submit sb-icon-dislike"><span>[negative]</span></i></div></div>`,
+            card: '<div class="sb-card">[settings]</div>',
+            share: '<div class="sb-social-buttons">[settings]</div>',
+            slider: '<div class="sb-slider"><div>[items]</div></div><div class="sb-slider-arrow sb-icon-arrow-left[class]"></div><div class="sb-slider-arrow sb-icon-arrow-right sb-active[class]"></div>',
+            'slider-images': '<div class="sb-slider sb-slider-images"><div>[items]</div></div><div class="sb-slider-arrow sb-icon-arrow-left[class]"></div><div class="sb-slider-arrow sb-icon-arrow-right sb-active[class]"></div>'
         },
         cache: {},
 
@@ -4217,7 +4293,7 @@
                 content = this.rich_messsages[name];
             } else if (name in this.cache) {
                 content = this.cache[name];
-            } else if ((admin && SB_ADMIN_SETTINGS.rich_messages.includes(name)) || (!admin && CHAT_SETTINGS.rich_messages.includes(name))) {
+            } else if (this.isShortcode(name)) {
                 if (!settings.id) {
                     id = name;
                 }
@@ -4265,18 +4341,16 @@
                         }
                         if (settings['phone'] == 'true') {
                             let phone = activeUser().getExtra('phone');
-                            let phone_codes = admin ? [] : CHAT_SETTINGS.phone_codes;
-                            let select = '';
-                            let single = phone_codes.length === 1;
-                            if (single) {
-                                select = `<input disabled value="${phone_codes[0]}">`;
-                            } else {
-                                for (var i = 0; i < phone_codes.length; i++) {
-                                    select += `<option value="+${phone_codes[i]}">+${phone_codes[i]}</option>`;
-                                }
-                                select = `<select><option value="">+00</option>${select}</select>`;
+                            if (!this.cache.phone) {
+                                this.cache.phone = true;
+                                SBF.ajax({
+                                    function: 'get-select-phone'
+                                }, (response) => {
+                                    this.cache.phone = response;
+                                    chat.find('#phone .sb-select-phone').html(response);
+                                });
                             }
-                            content += `<div id="phone" data-type="select-input" class="sb-input sb-input-select-input"><span class="${phone ? 'sb-active sb-filled' : ''}">${sb_('Phone')}</span><div>${select}</div><input value="${admin ? '' : phone}" autocomplete="false" type="number" ${settings['phone-required'] != 'false' ? 'required' : ''}></div>`;
+                            content += `<div id="phone" data-type="select-input" class="sb-input sb-input-select-input"><span class="${phone ? 'sb-active sb-filled' : ''}">${sb_('Phone')}</span><div class="sb-select-phone">${this.cache.phone ? this.cache.phone : ''}</div><input autocomplete="false" type="text" data-phone="true"${settings['phone-required'] != 'false' ? ' required' : ''}></div>`;
                         }
                         content += `<div id="email" data-type="email" class="sb-input sb-input-btn"><span class="${email ? 'sb-active sb-filled' : ''}">${sb_(SBF.null(settings.placeholder) ? 'Email' : settings.placeholder)}</span><input value="${email}" autocomplete="off" type="email" required><div class="sb-submit sb-icon-arrow-right"></div></div>`;
                         break;
@@ -4284,7 +4358,7 @@
                         content = `<div class="sb-image"><img loading="lazy" src="${settings.url}"></div>`;
                         break;
                     case 'video':
-                        content = `<iframe loading="lazy"${settings.height ? ` height="${settings.height}"` : ''} src="${settings.type == 'youtube' ? '//www.youtube.com/embed/' : '//player.vimeo.com/video/'}${settings.id}" allowfullscreen></iframe>`;
+                        content = `<iframe loading="lazy"${settings.height ? ` height="${settings.height}"` : ''} src="https://${settings.type == 'youtube' ? 'www.youtube.com/embed/' : 'player.vimeo.com/video/'}${settings.id}" allowfullscreen></iframe>`;
                         break;
                     case 'select':
                         options = settings && settings.options ? settings.options.replace(/\\,/g, '{R}').split(',') : [];
@@ -4303,20 +4377,26 @@
                         content = content.replace('[options]', code);
                         break;
                     case 'button':
-                        let action_link = settings.link.includes('calendly.com');
-                        content = `<a ${action_link ? 'data-action="calendly" data-extra="' + settings.link + '|' + (settings.success ? settings.success.replaceAll('"', '\'') : '') + '" ' : ''}href="${action_link ? '#' : settings.link.replace(/<i>/g, '_').replace(/<\/i>/g, '_')}"${settings.target && !action_link ? ' target="_blank"' : ''} class="sb-rich-btn sb-btn${settings.style == 'link' ? '-text' : ''}">${sb_(settings.name)}</a>`;
+                        if (settings && settings.link) {
+                            let action_link = settings.link.includes('calendly.com');
+                            content = `<a ${action_link ? 'data-action="calendly" data-extra="' + settings.link + '|' + (settings.success ? settings.success.replaceAll('"', '\'') : '') + '" ' : ''}href="${action_link ? '#' : settings.link.replace(/<i>/g, '_').replace(/<\/i>/g, '_')}"${settings.target && !action_link ? ' target="_blank"' : ''} class="sb-rich-btn sb-btn${settings.style == 'link' ? '-text' : ''}">${sb_(settings.name)}</a>`;
+                        }
                         break;
                     case 'list':
                         if (settings.values) {
-                            options = settings.values.replace(/\\,/g, '{R}').split(',');
+                            options = settings.values.replace(/\\,/g, '{R}').replace(/\\:/g, '{R2}').split(',');
                             let list = name == 'list';
                             let list_double = list && options.length && options[0].indexOf(':') > 0;
                             if (list && !list_double) {
                                 content = content.replace('sb-text-list', 'sb-text-list sb-text-list-single');
                             }
+                            if (settings.numeric) {
+                                content = content.replace('sb-text-list', 'sb-text-list sb-text-list-numeric');
+                            }
                             for (var i = 0; i < options.length; i++) {
                                 let item = options[i].replace(/{R}/g, ',');
-                                code += list_double ? `<div><div>${sb_(item.split(':')[0])}</div><div>${sb_(item.split(':')[1])}</div></div>` : `<div>${$.trim(sb_(item))}</div>`;
+                                let is_inner = item.substr(0, 1) === '-';
+                                code += list_double && item.includes(':') ? `<div><div>${sb_(item.split(':')[0].replace(/{R2}/g, ':'))}</div><div>${sb_(item.split(':')[1].replace(/{R2}/g, ':'))}</div></div>` : `<div${is_inner ? ' data-inner="true"' : ''}>${$.trim(sb_((is_inner ? item.substr(1) : item).replace(/{R2}/g, ':')))}</div>`;
                             }
                             content = content.replace('[values]', code);
                         }
@@ -4415,7 +4495,7 @@
                         }
                         content = content.replace('[items]', code);
                         break;
-                    case 'woocommerce-button':
+                    case 'woocommerce_button':
                         settings.settings = `checkout:${settings.checkout},coupon:${settings.coupon}`;
                         content = `<a href="#" data-ids="${settings.ids}" class="sb-rich-btn sb-btn">${settings.name}</a>`;
                         break;
@@ -4435,7 +4515,7 @@
                 let message_id = $(area).closest('[data-id]').attr('data-id');
                 let message = '';
                 let payload = { 'rich-messages': {} };
-                let user_settings = activeUser() == false ? { 'profile_image': ['', ''], 'first_name': ['', ''], 'last_name': ['', ''], 'email': ['', ''], 'password': ['', ''], 'user_type': ['', ''] } : { 'profile_image': [activeUser().image, ''], 'first_name': [activeUser().get('first_name'), ''], 'last_name': [activeUser().get('last_name'), ''], 'email': [activeUser().email, ''], 'password': ['', ''], 'user_type': ['', ''] };
+                let user_settings = activeUser() == false ? { profile_image: '', first_name: '', last_name: '', email: '', password: '', user_type: '' } : { profile_image: activeUser().image, first_name: activeUser().get('first_name'), last_name: activeUser().get('last_name'), email: activeUser().email, password: '', user_type: '' };
                 let settings = {};
                 let input = $(element);
                 let dialogflow_response = '';
@@ -4460,19 +4540,22 @@
                 switch (type) {
                     case 'email':
                         settings = SBForm.getAll(area);
+                        $.each(settings, function (key, value) {
+                            settings[key] = value[0];
+                        });
                         if (settings.first_name) {
-                            user_settings.user_type = ['user', ''];
+                            user_settings.user_type = 'user';
                             if (!settings.last_name) {
-                                user_settings.last_name = ['', ''];
+                                user_settings.last_name = '';
                             }
                         }
                         if (settings.phone) {
-                            settings_extra = { 'phone': [settings.phone[0], 'Phone'] };
+                            settings_extra = { phone: [settings.phone, 'Phone'] };
                         }
                         $.extend(user_settings, settings);
                         error = 'Please fill in all required fields and make sure the email is valid.';
                         if (success) {
-                            success = sb_(success).replace('{user_email}', user_settings.email[0]).replace('{user_name_}', user_settings.first_name[0] + (settings.last_name ? (' ' + user_settings.last_name[0]) : ''));
+                            success = sb_(success).replace('{user_email}', user_settings.email).replace('{user_name_}', user_settings.first_name + (settings.last_name ? (' ' + user_settings.last_name) : ''));
                         }
                         payload['rich-messages'][rich_message_id] = { type: type, result: settings };
                         payload['event'] = 'update-user';
@@ -4480,8 +4563,12 @@
                         dialogflow_parameters = { settings: user_settings, settings_extra: settings_extra };
                         break;
                     case 'registration':
+                        settings = SBForm.getAll(area.find('.sb-form-main'));
                         settings_extra = SBForm.getAll(area.find('.sb-form-extra'));
-                        $.extend(user_settings, SBForm.getAll(area.find('.sb-form-main')));
+                        $.each(settings, function (key, value) {
+                            settings[key] = value[0];
+                        });
+                        $.extend(user_settings, settings);
                         payload_settings = $.extend({}, user_settings);
                         if (success) {
                             success = sb_(success);
@@ -4489,7 +4576,7 @@
                         if (CHAT_SETTINGS.registration_details) {
                             success += '[list values="';
                             for (var key in user_settings) {
-                                let value = user_settings[key][0].replace(/:|,/g, '');
+                                let value = user_settings[key].replace(/:|,/g, '');
                                 if (value) {
                                     if (key == 'profile_image') {
                                         value = value.substr(value.lastIndexOf('/') + 1);
@@ -4498,7 +4585,7 @@
                                         value = '********';
                                         payload_settings[key] = '********';
                                     }
-                                    success += user_settings[key][1] ? `${sb_(user_settings[key][1].replace(/:|,/g, ''))}:${value},` : '';
+                                    success += user_settings[key] ? `${sb_(SBF.slugToString(user_settings[key]))}:${value},` : '';
                                 }
                             }
                             for (var key in settings_extra) {
@@ -4508,7 +4595,7 @@
                             }
                             success = success.slice(0, -1) + '"]';
                         }
-                        user_settings['user_type'] = ['user', ''];
+                        user_settings.user_type = 'user';
                         payload['rich-messages'][rich_message_id] = { type: type, result: { user: payload_settings, extra: settings_extra } };
                         payload['event'] = 'update-user';
                         parameters = { function: activeUser() ? 'update-user-and-message' : 'add-user-and-login', settings: user_settings, settings_extra: settings_extra, payload: payload };
@@ -4528,7 +4615,9 @@
                     case 'select':
                     case 'buttons':
                         settings = SBF.escape($(element).html());
-                        if (success) success = sb_(success) + ` *${settings}*`;
+                        if (success) {
+                            success = sb_(success) + ` *${settings}*`;
+                        }
                         payload['rich-messages'][rich_message_id] = { type: type, result: settings };
                         parameters = { function: 'update-message', payload: payload };
                         dialogflow_response = settings;
@@ -4567,24 +4656,25 @@
                 }
                 if (!success && type != 'registration') {
                     let shortcode_settings = this.shortcode(shortcode);
+                    let id = shortcode_settings[1].id ? `id="${shortcode_settings[1].id}"` : '';
                     let title = shortcode_settings[1].title ? `title="${shortcode_settings[1].title}"` : '';
                     let message = shortcode_settings[1].message ? `message="${shortcode_settings[1].message}"` : '';
                     let value = '';
                     if (['inputs', 'email'].includes(type)) {
                         for (var key in settings) {
-                            value += settings[key][0] + ',';
+                            value += settings[key] + ',';
                         }
                         value = `values="${value.slice(0, -1)}"`
                     } else {
                         value = `options="${settings}"`;
                     }
-                    success = `[${type == 'email' ? 'inputs' : type} ${title} ${message} ${value} disabled="true"]`;
+                    success = `[${type == 'email' ? 'inputs' : type} ${id} ${title} ${message} ${value} disabled="true"]`;
                 }
                 if (message_id != -1) {
                     success = success.replace(/<br>/g, '\n');
                     $.extend(parameters, {
                         message_id: message_id,
-                        message: message ? message.replace(shortcode, success) : success,
+                        message: message ? (type == 'chips' ? message.replace(']', ' disabled="true"]') : message.replace(shortcode, success)) : success,
                         payload: payload
                     });
                 }
@@ -4593,13 +4683,13 @@
                         switch (type) {
                             case 'email':
                                 for (var key in user_settings) {
-                                    activeUser().set(key, user_settings[key][0]);
+                                    activeUser().set(key, user_settings[key]);
                                 }
                                 for (var key in settings_extra) {
                                     activeUser().setExtra(key, settings_extra[key][0]);
                                 }
                                 SBF.loginCookie(response[1]);
-                                if (rich_message_id == 'sb-subscribe-form') {
+                                if (rich_message_id == 'sb-follow-up') {
                                     SBF.ajax({
                                         function: 'subscribe-email',
                                         email: activeUser().email
@@ -4610,7 +4700,7 @@
                                 break;
                             case 'registration':
                                 SBF.loginCookie(response[1]);
-                                user_settings.id = [response[0].id];
+                                user_settings.id = response[0].id;
                                 if (!activeUser()) {
                                     activeUser(new SBUser(response[0]));
                                     for (var key in settings_extra) {
@@ -4623,7 +4713,7 @@
                                     }
                                 } else {
                                     for (var key in user_settings) {
-                                        activeUser().set(key, user_settings[key][0]);
+                                        activeUser().set(key, user_settings[key]);
                                     }
                                     for (var key in settings_extra) {
                                         activeUser().setExtra(key, settings_extra[key][0]);
@@ -4636,9 +4726,9 @@
                                     if (!SBChat.isInitDashboard()) SBChat.hideDashboard();
                                 }
                                 if (CHAT_SETTINGS.wp_registration && user_settings.email && user_settings.password) {
-                                    SBApps.wordpress.ajax('wp-registration', { user_id: response[0].id, first_name: response[0].first_name, last_name: response[0].last_name, password: user_settings.password[0], email: user_settings.email[0] });
+                                    SBApps.wordpress.ajax('wp-registration', { user_id: response[0].id, first_name: response[0].first_name, last_name: response[0].last_name, password: user_settings.password, email: user_settings.email });
                                 } else if (CHAT_SETTINGS.wp_users_system == 'wp') {
-                                    SBApps.wordpress.ajax('wp-login', { user: user_settings.email[0], password: user_settings.password[0] });
+                                    SBApps.wordpress.ajax('wp-login', { user: user_settings.email, password: user_settings.password });
                                 }
                                 delete this.cache.registration;
                                 setTimeout(() => {
@@ -4651,8 +4741,11 @@
                         }
                         if (message_id == -1) {
                             $(element).closest('.sb-rich-message').html(success);
-                        } else if ((!payload.type || payload.type != 'close-message') && !dialogflow_human_takeover) {
-                            SBChat.setConversationStatus(2);
+                        } else {
+                            input.sbLoading(false);
+                            if ((!payload.type || payload.type != 'close-message') && !dialogflow_human_takeover) {
+                                SBChat.setConversationStatus(2);
+                            }
                         }
                         if (!['login', 'chips', 'rating'].includes(type) && (CHAT_SETTINGS.dialogflow_send_user_details || !['email', 'registration'].includes(type))) {
                             SBApps.dialogflow.message(`${rich_message_id}${dialogflow_response ? ('|' + dialogflow_response) : ''}`, [], false, dialogflow_parameters);
@@ -4782,6 +4875,10 @@
                 area.find('div').eq(0).html(`<div>${sb_(title)}</div><i class="sb-btn-icon sb-icon-close"></i>`);
                 area.sbActive(true);
             }
+        },
+
+        isShortcode: function (shortcode_name) {
+            return shortcode_name in this.rich_messsages || (admin && SB_ADMIN_SETTINGS.rich_messages.includes(shortcode_name)) || (!admin && CHAT_SETTINGS.rich_messages.includes(shortcode_name));
         }
     }
     window.SBRichMessages = SBRichMessages;
@@ -4816,7 +4913,7 @@
                     return [SBF.escape(input.find('select').val()), name];
                 case 'select-input':
                     let select = input.find('select,input[disabled]');
-                    return [SBF.escape((select.is('select') || select.is('input') ? select.val() : (input.find('.sb-select').length ? input.find('.sb-select > p').attr('data-value') : input.find('> div').html())) + input.find('input[type="number"]').val()), name];
+                    return [SBF.escape((select.is('select') || select.is('input') ? select.val() : (input.find('.sb-select').length ? input.find('.sb-select > p').attr('data-value') : input.find('> div').html())) + input.find('> input').val()), name];
                 default:
                     let target = input.find('input');
                     return [SBF.escape(target.length ? target.val() : input.find('[data-value]').attr('data-value')), name];
@@ -4850,7 +4947,7 @@
 
         // Clear all the input values
         clear: function (area) {
-            $(area).find('.sb-input,.sb-input-setting').each((i, element) => {
+            $(area).find('.sb-input,.sb-setting').each((i, element) => {
                 this.set(element, '');
                 $(element).find('input, select, textarea').removeClass('sb-error');
             });
@@ -4865,7 +4962,7 @@
                 let value = $.trim($(this).val());
                 let type = $(this).attr('type');
                 let required = $(this).prop('required');
-                if ((required && !value) || ((required || value) && ((type == 'password' && (value.length < 8 || (items.length > (i + 1) && items.eq(i + 1).attr('type') == 'password' && items.eq(i + 1).val() != value))) || (type == 'email' && (value.indexOf('@') < 0 || value.indexOf('.') < 0 || /;|:|\/|\\|,|#|"|!|=|\+|\*|{|}|[|]|£|\$|€|~|'|>|<|\^|&/.test(value))) || (type == 'tel' && value && ((!$(this).parent().find('select').val() && !$(this).parent().find('div').html().trim().startsWith('+')) || isNaN(value) || value.includes('+') || value.length < 5))))) {
+                if ((required && !value) || ((required || value) && ((type == 'password' && (value.length < 8 || (items.length > (i + 1) && items.eq(i + 1).attr('type') == 'password' && items.eq(i + 1).val() != value))) || (type == 'email' && (value.indexOf('@') < 0 || value.indexOf('.') < 0 || /;|:|\/|\\|,|#|"|!|=|\+|\*|{|}|[|]|£|\$|€|~|'|>|<|\^|&/.test(value))) || ($(this).attr('data-phone') && value && ((!$(this).parent().find('select').val() && !$(this).prev().find('> div > p').attr('data-value') && !$(this).parent().find('div').html().trim().startsWith('+')) || isNaN(value) || value.includes('+') || value.length < 5))))) {
                     errors = true;
                     $(this).addClass('sb-error');
                 }
@@ -4897,12 +4994,14 @@
 
         // Return the registration error message
         getRegistrationErrorMessage(area_or_response, type = 'validation') {
-            if (type == 'response') return SBF.errorValidation(area_or_response, 'duplicate-email') ? 'This email is already in use. Please use another email.' : (SBF.errorValidation(area_or_response, 'duplicate-phone') ? 'This phone number is already in use. Please use another number.' : (SBF.errorValidation(area_or_response, 'invalid-envato-purchase-code') ? 'Invalid Envato purchase code.' : 'Error. Please check your information and try again.'))
-            let name = $(area_or_response).find('#last_name').length ? 'First name, last name' : 'Name';
-            let phone = $(area_or_response).find('#phone [required]').length ? ', phone number' : '';
-            let email = $(area_or_response).find('#email').length ? ', email' : '';
-            let password = $(area_or_response).find('#password').length ? ', and a password (8 character minimum)' : '';
-            return `${name}${email}${phone}${password} ${(email + phone + password) ? 'are' : 'is'} required.`;
+            let error_text = '';
+            if (type == 'response') {
+                return SBF.errorValidation(area_or_response, 'duplicate-email') ? 'This email is already in use. Please use another email.' : (SBF.errorValidation(area_or_response, 'duplicate-phone') ? 'This phone number is already in use. Please use another number.' : (SBF.errorValidation(area_or_response, 'invalid-envato-purchase-code') ? 'Invalid Envato purchase code.' : 'Error. Please check your information and try again.'))
+            }
+            $(area_or_response).find('.sb-input:not(#password-check) [required]').each(function () {
+                error_text += ', ' + sb_($(this).closest('.sb-input').find('span').html() + ($(this).attr('type') == 'password' ? ' (8 characters minimum)' : ''));
+            });
+            return `${error_text.substring(2)} ${error_text.includes(',') ? 'are' : 'is'} required.`;
         }
     }
     window.SBForm = SBForm;
@@ -4989,7 +5088,7 @@
 
         dialogflow: {
             token: storage('dialogflow-token'),
-            typing_enabled: false,
+            typing_enabled: true,
             project_id: false,
 
             message: function (message = '', attachments = [], delay = false, parameters = false, audio = false) {
@@ -5011,6 +5110,7 @@
                     if (this.chatbotLimit()) {
                         return SBChat.sendMessage(bot_id, this.chatbotLimit());
                     }
+                    SBChat.headerAgent(true);
                     setTimeout(() => {
                         let conversation = SBChat.conversation;
                         SBF.ajax({
@@ -5025,7 +5125,10 @@
                             session_id: activeUser().id + '-' + conversation.id,
                             audio: audio
                         }, (response) => {
-                            if (response === false) return;
+                            SBChat.typing(-1, 'stop');
+                            if (response === false) {
+                                return;
+                            }
                             if (response.response && response.response.error) {
                                 return console.error(response.response);
                             }
@@ -5047,7 +5150,6 @@
                                 let query_result = response.response.queryResult ? response.response.queryResult : false;
                                 let is_unknow = query_result && (query_result.action == 'input.unknown' || (query_result.match && query_result.match.matchType == 'NO_MATCH'));
                                 let messages = response.messages && Array.isArray(response.messages) ? response.messages : [];
-                                SBChat.typing(-1, 'stop');
                                 clearTimeout(timeout);
                                 if (this.token != response.token) {
                                     this.token = response.token;
@@ -5179,21 +5281,27 @@
                         });
                     }, delay !== false ? delay : (CHAT_SETTINGS.bot_delay == 0 ? 2000 : parseInt(CHAT_SETTINGS.bot_delay)));
                 } else if (this.active(true, false, true) && !$('.sb-emoji-list').html().includes('<li>' + message + '</li>')) {
-                    this.openAI(message, false, audio);
+                    this.openAI(message, false, audio, attachments);
                 }
             },
 
-            openAI: function (message, onSuccess = false, audio = false) {
+            openAI: function (message, onSuccess = false, audio = false, attachments = []) {
                 if (CHAT_SETTINGS.open_ai_active) {
-                    this.typing_enabled = true;
-                    this.typing();
+                    SBChat.headerAgent(true);
+                    if (!SBApps.dialogflow.humanTakeoverActive() || this.typing_enabled) {
+                        this.typing();
+                    }
+                    if (this.chatbotLimit()) {
+                        return SBChat.sendMessage(bot_id, this.chatbotLimit());
+                    }
                     setTimeout(() => {
                         SBF.ajax({
                             function: 'open-ai-message',
                             message: message,
                             conversation_id: SBChat.conversation ? SBChat.conversation.id : false,
                             audio: audio,
-                            extra: { token: SBApps.dialogflow.token }
+                            extra: { token: SBApps.dialogflow.token },
+                            attachments: attachments
                         }, (response) => {
                             SBChat.typing(-1, 'stop');
                             SBF.event('SBOpenAIMessage', { response: response, message: message });
@@ -5201,7 +5309,7 @@
                                 if (CHAT_SETTINGS.chatbot_limit) {
                                     this.chatbot_limit++;
                                 }
-                                if (CHAT_SETTINGS.slack_active) {
+                                if (CHAT_SETTINGS.slack_active && message && (!dialogflow_human_takeover || SBApps.dialogflow.humanTakeoverActive())) {
                                     SBChat.slackMessage(activeUser().id, CHAT_SETTINGS.bot_name, CHAT_SETTINGS.bot_image, response[1]);
                                 }
                                 if (response[2] && SBApps.dialogflow.token != response[2]) {
@@ -5212,10 +5320,23 @@
                                     SBChat.offlineMessage();
                                     SBChat.followUp();
                                 }
-                            } else {
+                                if (response[5]) {
+                                    if (response[5].redirect) {
+                                        setTimeout(() => {
+                                            document.location = response[5].redirect;
+                                        }, 500);
+                                    }
+                                    if (response[5].open_article) {
+                                        SBChat.showArticles(response[5].open_article);
+                                    }
+                                }
+                                this.chatbotLimit(false);
+                            } else if (response[1] !== false) {
                                 SBF.error(response[1].error ? response[1].error.message : response[1], 'SBApps.dialogflow.openAI');
                             }
-                            if (onSuccess) onSuccess(response);
+                            if (onSuccess) {
+                                onSuccess(response);
+                            }
                         });
                     }, CHAT_SETTINGS.bot_delay == 0 ? 2000 : parseInt(CHAT_SETTINGS.bot_delay));
                 }
@@ -5458,7 +5579,7 @@
 
         // Initialize the chat and the user
         if (main.length && typeof SB_AJAX_URL != ND) {
-            chat = main.find('.sb-list');
+            chat = main.find('.sb-list').eq(0);
             chat_editor = main.find('.sb-editor');
             chat_textarea = chat_editor.find('textarea');
             chat_scroll_area = main.find(admin || tickets ? '.sb-list' : '> div > .sb-scroll-area');
@@ -5558,7 +5679,9 @@
                 }
             });
             $(main).on('keydown', '.sb-dashboard-articles input', function (e) {
-                if (e.which == 13) $(this).next().click();
+                if (e.which == 13) {
+                    $(this).next().click();
+                }
             });
             if (typeof SB_DEFAULT_DEPARTMENT !== ND) {
                 SBChat.default_department = SB_DEFAULT_DEPARTMENT;
@@ -5958,7 +6081,7 @@
 
         $(main).on('focusout', '[data-type="select-input"] input,[data-type="select-input"] select', function () {
             let cnt = $(this).closest('.sb-input');
-            if (cnt.find('input[type="number"]').val() + cnt.find('select').val() == '') {
+            if (cnt.find('> input').val() + cnt.find('select').val() == '') {
                 cnt.find('span').sbActive(false);
             }
             cnt.find('.sb-focus').removeClass('sb-focus');
@@ -6021,7 +6144,7 @@
         });
 
         // WooCommerce
-        $(chat).on('click', '.sb-rich-woocommerce-button a, [href="#"].sb-card-btn', function (e) {
+        $(chat).on('click', '.sb-rich-woocommerce_button a, [href="#"].sb-card-btn', function (e) {
             let settings = SBF.settingsStringToArray($(this).closest('.sb-rich-message').attr('data-settings'));
             let checkout = settings['link-type'] == 'checkout' || settings.checkout;
             let product_ids = $(this)[0].hasAttribute('data-ids') ? $(this).attr('data-ids').split(',') : [settings.id.split('|')[$(this).parent().index()]];
@@ -6093,31 +6216,50 @@
 
         // Audio recording
         $(chat_editor).on('click', '.sb-btn-audio-clip', function () {
+            audio_mp3 = SBChat.conversation && SBChat.conversation.get('source') == 'wa';
+            if (audio_mp3 && typeof SBAudioRecorder === ND) {
+                return $.getScript(SB_URL + '/vendor/lame.min.js', () => { this.click(); }, true);
+            }
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                audio_recorder_chunks = [];
-                audio_recorder = new MediaRecorder(stream);
-                audio_recorder.addEventListener('dataavailable', e => {
-                    audio_recorder_chunks.push(e.data);
-                });
+                if (audio_mp3) {
+                    SBAudioRecorder.init(stream);
+                } else {
+                    if (typeof SBAudioRecorder != ND) {
+                        SBAudioRecorder.close();
+                    }
+                    audio_recorder_chunks = [];
+                    audio_recorder = new MediaRecorder(stream);
+                    audio_recorder.addEventListener('dataavailable', e => {
+                        audio_recorder_chunks.push(e.data);
+                    });
+                }
                 if (!audio_recorder_dom) {
                     audio_recorder_dom = chat_editor.find('#sb-audio-clip');
                     audio_recorder_dom_time = audio_recorder_dom.find('.sb-audio-clip-time');
                     audio_recorder_dom.on('click', '.sb-btn-mic', function () {
                         let is_pause = $(this).hasClass('sb-icon-pause');
                         if (is_pause) {
-                            audio_recorder.stop();
+                            if (audio_mp3) {
+                                SBAudioRecorder.pause();
+                            } else {
+                                audio_recorder.stop();
+                            }
                         } else {
                             let button = audio_recorder_dom.find('.sb-btn-clip-player');
                             if (button.hasClass('sb-icon-pause')) {
                                 button.click();
                             }
-                            audio_recorder.start();
+                            if (audio_mp3) {
+                                SBAudioRecorder.resume();
+                            } else {
+                                audio_recorder.start();
+                            }
                         }
                         audio_recorder_time[2] = !is_pause;
-                        audio_recorder_time_player[3] = false;
                         audio_recorder_dom.find('.sb-icon-play').sbActive(is_pause);
                         $(this).removeClass('sb-icon-' + (is_pause ? 'pause' : 'mic')).addClass('sb-icon-' + (is_pause ? 'mic' : 'pause'));
                     });
+
                     audio_recorder_dom.on('click', '.sb-btn-clip-player', function () {
                         let is_pause = $(this).hasClass('sb-icon-pause');
                         if (is_pause) {
@@ -6128,12 +6270,13 @@
                                 audio_recorder_time_player[3].play();
                                 audio_recorder_time_player[2] = true;
                             } else {
-                                let audio = new Audio(URL.createObjectURL(new Blob(audio_recorder_chunks, { type: 'audio/webm' })));
+                                let audio = new Audio(URL.createObjectURL(audio_mp3 ? SBAudioRecorder.blob(false) : new Blob(audio_recorder_chunks, { type: 'audio/webm' })));
                                 audio_recorder_dom_time.html('0:00');
                                 audio.play();
                                 audio.onended = () => {
                                     audio_recorder_time_player[0] = 0;
                                     audio_recorder_time_player[2] = false;
+                                    audio_recorder_time_player[3] = false;
                                     audio_recorder_dom_time.html('0:00');
                                     $(this).removeClass('sb-icon-pause').addClass('sb-icon-play');
                                 }
@@ -6144,13 +6287,18 @@
                         }
                         $(this).removeClass('sb-icon-' + (is_pause ? 'pause' : 'play')).addClass('sb-icon-' + (is_pause ? 'play' : 'pause'));
                     });
+
                     audio_recorder_dom.on('click', '.sb-icon-close', function () {
                         audio_recorder_chunks = [];
                         clearInterval(audio_recorder_time[1]);
                         clearInterval(audio_recorder_time_player[1]);
                         audio_recorder_dom.sbActive(false);
                         chat_editor.sbActive(false).removeClass('sb-audio-message-active');
-                        audio_recorder.stop();
+                        if (audio_mp3) {
+                            SBAudioRecorder.pause();
+                        } else {
+                            audio_recorder.stop();
+                        }
                         audio_recorder_stream.getTracks()[0].stop();
                     });
                 }
@@ -6170,7 +6318,9 @@
                         audio_recorder_dom_time.html(getMinutesSeconds(audio_recorder_time_player[0]));
                     }
                 }, 1000), false, false];
-                audio_recorder.start();
+                if (!audio_mp3) {
+                    audio_recorder.start();
+                }
                 audio_recorder_dom.find('.sb-btn-clip-player').removeClass('sb-icon-pause').addClass('sb-icon-play').sbActive(false);
                 audio_recorder_dom.find('.sb-icon-mic').removeClass('sb-icon-mic').addClass('sb-icon-pause');
                 audio_recorder_dom.sbActive(true);
@@ -6190,6 +6340,29 @@
 
         $(main).on('click', '.sb-overlay-panel > div:first-child i', function () {
             main.find('.sb-overlay-panel').sbActive(false);
+        });
+
+        // Phone 
+        $(main).on('change input', '#phone > input', function () {
+            let value = $(this).val().trim();
+            if (!/^[0-9+]+$/.test(value)) {
+                value = value.replace(/[^0-9+]/g, '');
+                $(this).val(value);
+            }
+            if (value.length > 1 && value.indexOf('+') === 0) {
+                let prefix = false;
+                if (value.substring(0, 2) == '+1') {
+                    prefix = value.substring(0, 2);
+                }
+                if (value.length > 3) {
+                    prefix = value.substring(0, 3);
+                }
+                if (prefix) {
+                    $(this).parent().find(`[data-value="${prefix}"]`).click();
+                    $(this).parent().find(`.sb-select`).click();
+                    $(this).val(value.replace(prefix, ''));
+                }
+            }
         });
 
         /*
